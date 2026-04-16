@@ -1,10 +1,12 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Monitor, Wrench, Package, BarChart3,
-  Users, Settings, HelpCircle, LogOut, Menu, Bell, Search, X
+  Users, Settings, HelpCircle, LogOut, Menu, Bell, Search,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -17,7 +19,23 @@ const navItems = [
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [nome, setNome] = useState("Usuário");
   const navigate = useNavigate();
+  const { user, roles, signOut } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("nome").eq("user_id", user.id).maybeSingle()
+      .then(({ data }) => { if (data?.nome) setNome(data.nome); });
+  }, [user]);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  const initials = nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+  const tipoLabel = roles.includes("admin") ? "Administrador" : roles.includes("tecnico") ? "Técnico" : "Usuário";
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -68,7 +86,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
             <HelpCircle className="h-4 w-4" /> Ajuda
           </button>
           <button
-            onClick={() => navigate("/")}
+            onClick={handleLogout}
             className="flex items-center gap-3 px-2 py-2 text-sm opacity-70 hover:opacity-100 text-accent w-full"
           >
             <LogOut className="h-4 w-4" /> Sair
@@ -115,11 +133,11 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
             </button>
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                JS
+                {initials || "U"}
               </div>
               <div className="hidden md:block">
-                <p className="text-sm font-medium leading-none">João Silva</p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
+                <p className="text-sm font-medium leading-none">{nome}</p>
+                <p className="text-xs text-muted-foreground">{tipoLabel}</p>
               </div>
             </div>
           </div>
