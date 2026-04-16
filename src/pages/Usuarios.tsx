@@ -1,56 +1,85 @@
-import { useState } from "react";
-import { Search, Plus, Users as UsersIcon, Edit, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { Search, Users as UsersIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { usuarios } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+
+interface Row {
+  user_id: string;
+  nome: string;
+  email: string;
+  role: "admin" | "tecnico" | "usuario";
+}
 
 const tipoColors: Record<string, string> = {
-  Administrador: "bg-primary/10 text-primary",
-  Técnico: "bg-info/10 text-info",
-  Usuário: "bg-muted text-muted-foreground",
+  admin: "bg-primary/10 text-primary",
+  tecnico: "bg-info/10 text-info",
+  usuario: "bg-muted text-muted-foreground",
+};
+const tipoLabel: Record<string, string> = {
+  admin: "Administrador", tecnico: "Técnico", usuario: "Usuário",
 };
 
 const Usuarios = () => {
   const [busca, setBusca] = useState("");
-  const filtered = usuarios.filter(
-    (u) =>
-      u.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      u.email.toLowerCase().includes(busca.toLowerCase())
-  );
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { roles } = useAuth();
+  const isAdmin = roles.includes("admin");
 
-  const admins = usuarios.filter((u) => u.tipo === "Administrador").length;
-  const tecnicos = usuarios.filter((u) => u.tipo === "Técnico").length;
-  const inativos = usuarios.filter((u) => u.status === "Inativo").length;
+  const load = async () => {
+    setLoading(true);
+    const { data: profiles, error } = await supabase.from("profiles").select("user_id, nome, email");
+    if (error) { toast.error(error.message); setLoading(false); return; }
+    const { data: rolesData } = await supabase.from("user_roles").select("user_id, role");
+    const roleMap = new Map<string, Row["role"]>();
+    rolesData?.forEach((r: any) => {
+      const cur = roleMap.get(r.user_id);
+      const rank = { admin: 3, tecnico: 2, usuario: 1 } as const;
+      if (!cur || rank[r.role as keyof typeof rank] > rank[cur]) roleMap.set(r.user_id, r.role);
+    });
+    setRows((profiles ?? []).map((p: any) => ({
+      user_id: p.user_id, nome: p.nome, email: p.email, role: roleMap.get(p.user_id) ?? "usuario",
+    })));
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const changeRole = async (userId: string, newRole: Row["role"]) => {
+    const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
+    if (delErr) return toast.error(delErr.message);
+    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
+    if (error) return toast.error(error.message);
+    toast.success("Papel atualizado");
+    load();
+  };
+
+  const filtered = rows.filter(
+    (u) => u.nome.toLowerCase().includes(busca.toLowerCase()) || u.email.toLowerCase().includes(busca.toLowerCase())
+  );
+  const admins = rows.filter((u) => u.role === "admin").length;
+  const tecnicos = rows.filter((u) => u.role === "tecnico").length;
+  const usuariosC = rows.filter((u) => u.role === "usuario").length;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <UsersIcon className="h-6 w-6 text-primary" /> Usuários
-          </h1>
-          <p className="text-sm text-muted-foreground">Controle de acesso ao sistema</p>
-        </div>
-        <Button><Plus className="h-4 w-4 mr-2" /> Novo Usuário</Button>
+      <div>
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <UsersIcon className="h-6 w-6 text-primary" /> Usuários
+        </h1>
+        <p className="text-sm text-muted-foreground">Controle de acesso ao sistema</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="stat-card text-center">
-          <p className="text-2xl font-bold text-primary">{usuarios.length}</p>
-          <p className="text-xs text-muted-foreground">Total</p>
-        </div>
-        <div className="stat-card text-center">
-          <p className="text-2xl font-bold text-info">{admins}</p>
-          <p className="text-xs text-muted-foreground">Admins</p>
-        </div>
-        <div className="stat-card text-center">
-          <p className="text-2xl font-bold text-success">{tecnicos}</p>
-          <p className="text-xs text-muted-foreground">Técnicos</p>
-        </div>
-        <div className="stat-card text-center">
-          <p className="text-2xl font-bold text-muted-foreground">{inativos}</p>
-          <p className="text-xs text-muted-foreground">Inativos</p>
-        </div>
+        <div className="stat-card text-center"><p className="text-2xl font-bold text-primary">{rows.length}</p><p className="text-xs text-muted-foreground">Total</p></div>
+        <div className="stat-card text-center"><p className="text-2xl font-bold text-info">{admins}</p><p className="text-xs text-muted-foreground">Admins</p></div>
+        <div className="stat-card text-center"><p className="text-2xl font-bold text-success">{tecnicos}</p><p className="text-xs text-muted-foreground">Técnicos</p></div>
+        <div className="stat-card text-center"><p className="text-2xl font-bold text-muted-foreground">{usuariosC}</p><p className="text-xs text-muted-foreground">Usuários</p></div>
       </div>
 
       <div className="stat-card">
@@ -65,35 +94,39 @@ const Usuarios = () => {
               <tr className="text-left text-xs text-muted-foreground border-b border-border">
                 <th className="pb-3 font-medium">Nome</th>
                 <th className="pb-3 font-medium">E-mail</th>
-                <th className="pb-3 font-medium">Tipo</th>
-                <th className="pb-3 font-medium">Status</th>
-                <th className="pb-3 font-medium text-right">Ações</th>
+                <th className="pb-3 font-medium">Papel</th>
+                {isAdmin && <th className="pb-3 font-medium text-right">Alterar papel</th>}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u) => (
-                <tr key={u.id} className="border-b border-border last:border-0 hover:bg-muted/50">
+              {loading ? (
+                <tr><td colSpan={4} className="py-6 text-center text-muted-foreground">Carregando...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={4} className="py-6 text-center text-muted-foreground">Nenhum usuário</td></tr>
+              ) : filtered.map((u) => (
+                <tr key={u.user_id} className="border-b border-border last:border-0 hover:bg-muted/50">
                   <td className="py-3">
                     <div className="flex items-center gap-2">
                       <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-                        {u.nome.split(" ").map((n) => n[0]).join("")}
+                        {u.nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
                       </div>
                       <span className="font-medium text-foreground">{u.nome}</span>
                     </div>
                   </td>
                   <td className="py-3 text-muted-foreground">{u.email}</td>
-                  <td className="py-3">
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${tipoColors[u.tipo]}`}>{u.tipo}</span>
-                  </td>
-                  <td className="py-3">
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${u.status === "Ativo" ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
-                      {u.status}
-                    </span>
-                  </td>
-                  <td className="py-3 text-right">
-                    <button className="text-muted-foreground hover:text-primary p-1"><Edit className="h-4 w-4" /></button>
-                    <button className="text-muted-foreground hover:text-accent p-1 ml-1"><Trash2 className="h-4 w-4" /></button>
-                  </td>
+                  <td className="py-3"><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${tipoColors[u.role]}`}>{tipoLabel[u.role]}</span></td>
+                  {isAdmin && (
+                    <td className="py-3 text-right">
+                      <Select value={u.role} onValueChange={(v) => changeRole(u.user_id, v as Row["role"])}>
+                        <SelectTrigger className="w-36 ml-auto h-8"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                          <SelectItem value="tecnico">Técnico</SelectItem>
+                          <SelectItem value="usuario">Usuário</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
