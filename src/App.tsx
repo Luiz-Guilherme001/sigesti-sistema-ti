@@ -3,7 +3,10 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/hooks/useAuth";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
 import Dashboard from "./pages/Dashboard";
 import Computadores from "./pages/Computadores";
 import Manutencao from "./pages/Manutencao";
@@ -15,22 +18,29 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const protect = (el: JSX.Element) => (
+  <ProtectedRoute><AppLayout>{el}</AppLayout></ProtectedRoute>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Login />} />
-          <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
-          <Route path="/computadores" element={<AppLayout><Computadores /></AppLayout>} />
-          <Route path="/manutencao" element={<AppLayout><Manutencao /></AppLayout>} />
-          <Route path="/pecas" element={<AppLayout><Pecas /></AppLayout>} />
-          <Route path="/relatorios" element={<AppLayout><Relatorios /></AppLayout>} />
-          <Route path="/usuarios" element={<AppLayout><Usuarios /></AppLayout>} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Login />} />
+            <Route path="/cadastro" element={<Cadastro />} />
+            <Route path="/dashboard" element={protect(<Dashboard />)} />
+            <Route path="/computadores" element={protect(<Computadores />)} />
+            <Route path="/manutencao" element={protect(<Manutencao />)} />
+            <Route path="/pecas" element={protect(<Pecas />)} />
+            <Route path="/relatorios" element={protect(<Relatorios />)} />
+            <Route path="/usuarios" element={protect(<Usuarios />)} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
