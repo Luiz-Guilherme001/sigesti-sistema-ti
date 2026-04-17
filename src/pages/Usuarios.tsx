@@ -51,6 +51,12 @@ const Usuarios = () => {
   useEffect(() => { load(); }, []);
 
   const changeRole = async (userId: string, newRole: Row["role"]) => {
+    const target = rows.find((r) => r.user_id === userId);
+    const adminCount = rows.filter((r) => r.role === "admin").length;
+    if (target?.role === "admin" && newRole !== "admin" && adminCount <= 1) {
+      toast.error("Não é possível rebaixar o último administrador. Promova outro usuário a admin antes.");
+      return;
+    }
     const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
     if (delErr) return toast.error(delErr.message);
     const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
