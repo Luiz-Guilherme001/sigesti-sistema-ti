@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Plus, Wrench, Trash2 } from "lucide-react";
+import { Search, Plus, Wrench, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,10 +39,17 @@ const Manutencao = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    computador: "", problema: "", tecnico: "", status: "Pendente", prioridade: "Média",
-  });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const emptyForm = { computador: "", problema: "", tecnico: "", status: "Pendente", prioridade: "Média" };
+  const [form, setForm] = useState(emptyForm);
   const { isStaff } = useAuth();
+
+  const openNew = () => { setEditingId(null); setForm(emptyForm); setOpen(true); };
+  const openEdit = (m: Item) => {
+    setEditingId(m.id);
+    setForm({ computador: m.computador, problema: m.problema, tecnico: m.tecnico, status: m.status, prioridade: m.prioridade });
+    setOpen(true);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -54,12 +61,15 @@ const Manutencao = () => {
 
   useEffect(() => { load(); }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("manutencoes").insert(form);
+    const { error } = editingId
+      ? await supabase.from("manutencoes").update(form).eq("id", editingId)
+      : await supabase.from("manutencoes").insert(form);
     if (error) return toast.error(error.message);
-    toast.success("Manutenção criada");
-    setForm({ computador: "", problema: "", tecnico: "", status: "Pendente", prioridade: "Média" });
+    toast.success(editingId ? "Manutenção atualizada" : "Manutenção criada");
+    setForm(emptyForm);
+    setEditingId(null);
     setOpen(false);
     load();
   };
@@ -90,10 +100,10 @@ const Manutencao = () => {
         </div>
         {isStaff && (
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" /> Nova Manutenção</Button></DialogTrigger>
+            <DialogTrigger asChild><Button onClick={openNew}><Plus className="h-4 w-4 mr-2" /> Nova Manutenção</Button></DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Nova manutenção</DialogTitle></DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-3">
+              <DialogHeader><DialogTitle>{editingId ? "Editar manutenção" : "Nova manutenção"}</DialogTitle></DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-3">
                 <div><Label>Computador</Label><Input value={form.computador} onChange={(e) => setForm({ ...form, computador: e.target.value })} required /></div>
                 <div><Label>Problema</Label><Input value={form.problema} onChange={(e) => setForm({ ...form, problema: e.target.value })} required /></div>
                 <div><Label>Técnico</Label><Input value={form.tecnico} onChange={(e) => setForm({ ...form, tecnico: e.target.value })} required /></div>
@@ -165,7 +175,12 @@ const Manutencao = () => {
                   <td className="py-3"><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${prioridadeColors[m.prioridade] ?? ""}`}>{m.prioridade}</span></td>
                   <td className="py-3 text-muted-foreground">{new Date(m.data).toLocaleDateString("pt-BR")}</td>
                   <td className="py-3 text-right">
-                    {isStaff && <button onClick={() => handleDelete(m.id)} className="text-muted-foreground hover:text-accent p-1"><Trash2 className="h-4 w-4" /></button>}
+                    {isStaff && (
+                      <div className="inline-flex items-center gap-1">
+                        <button onClick={() => openEdit(m)} className="text-muted-foreground hover:text-primary p-1" title="Editar"><Pencil className="h-4 w-4" /></button>
+                        <button onClick={() => handleDelete(m.id)} className="text-muted-foreground hover:text-accent p-1" title="Excluir"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

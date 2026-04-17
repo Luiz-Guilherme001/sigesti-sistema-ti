@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Plus, Monitor, Trash2 } from "lucide-react";
+import { Search, Plus, Monitor, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,8 +33,17 @@ const Computadores = () => {
   const [items, setItems] = useState<Computador[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nome: "", patrimonio: "", localizacao: "", status: "Ativo" });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const emptyForm = { nome: "", patrimonio: "", localizacao: "", status: "Ativo" };
+  const [form, setForm] = useState(emptyForm);
   const { isStaff } = useAuth();
+
+  const openNew = () => { setEditingId(null); setForm(emptyForm); setOpen(true); };
+  const openEdit = (c: Computador) => {
+    setEditingId(c.id);
+    setForm({ nome: c.nome, patrimonio: c.patrimonio, localizacao: c.localizacao, status: c.status });
+    setOpen(true);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -46,12 +55,15 @@ const Computadores = () => {
 
   useEffect(() => { load(); }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("computadores").insert(form);
+    const { error } = editingId
+      ? await supabase.from("computadores").update(form).eq("id", editingId)
+      : await supabase.from("computadores").insert(form);
     if (error) return toast.error(error.message);
-    toast.success("Computador cadastrado");
-    setForm({ nome: "", patrimonio: "", localizacao: "", status: "Ativo" });
+    toast.success(editingId ? "Computador atualizado" : "Computador cadastrado");
+    setForm(emptyForm);
+    setEditingId(null);
     setOpen(false);
     load();
   };
@@ -80,11 +92,11 @@ const Computadores = () => {
         {isStaff && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-2" /> Novo Computador</Button>
+              <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" /> Novo Computador</Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Novo computador</DialogTitle></DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-3">
+              <DialogHeader><DialogTitle>{editingId ? "Editar computador" : "Novo computador"}</DialogTitle></DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-3">
                 <div><Label>Nome</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required /></div>
                 <div><Label>Patrimônio</Label><Input value={form.patrimonio} onChange={(e) => setForm({ ...form, patrimonio: e.target.value })} required /></div>
                 <div><Label>Localização</Label><Input value={form.localizacao} onChange={(e) => setForm({ ...form, localizacao: e.target.value })} required /></div>
@@ -138,7 +150,10 @@ const Computadores = () => {
                   <td className="py-3 text-muted-foreground">{c.ultima_manutencao ? new Date(c.ultima_manutencao).toLocaleDateString("pt-BR") : "—"}</td>
                   <td className="py-3 text-right">
                     {isStaff && (
-                      <button onClick={() => handleDelete(c.id)} className="text-muted-foreground hover:text-accent p-1"><Trash2 className="h-4 w-4" /></button>
+                      <div className="inline-flex items-center gap-1">
+                        <button onClick={() => openEdit(c)} className="text-muted-foreground hover:text-primary p-1" title="Editar"><Pencil className="h-4 w-4" /></button>
+                        <button onClick={() => handleDelete(c.id)} className="text-muted-foreground hover:text-accent p-1" title="Excluir"><Trash2 className="h-4 w-4" /></button>
+                      </div>
                     )}
                   </td>
                 </tr>
