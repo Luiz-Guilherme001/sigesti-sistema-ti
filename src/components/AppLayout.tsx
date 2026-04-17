@@ -14,7 +14,7 @@ const navItems = [
   { to: "/manutencao", icon: Wrench, label: "Manutenção" },
   { to: "/pecas", icon: Package, label: "Peças" },
   { to: "/relatorios", icon: BarChart3, label: "Relatórios" },
-  { to: "/usuarios", icon: Users, label: "Usuários" },
+  { to: "/usuarios", icon: Users, label: "Usuários", adminOnly: true },
 ];
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
@@ -58,7 +58,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
           <p className="px-5 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-2">
             Sistema
           </p>
-          {navItems.map((item) => (
+          {navItems.filter((i) => !i.adminOnly || roles.includes("admin")).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
