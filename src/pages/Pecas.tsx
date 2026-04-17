@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Plus, Package, Trash2 } from "lucide-react";
+import { Search, Plus, Package, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,8 +36,17 @@ const Pecas = () => {
   const [items, setItems] = useState<Peca[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nome: "", codigo: "", estoque: 0, minimo: 0 });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const emptyForm = { nome: "", codigo: "", estoque: 0, minimo: 0 };
+  const [form, setForm] = useState(emptyForm);
   const { isStaff } = useAuth();
+
+  const openNew = () => { setEditingId(null); setForm(emptyForm); setOpen(true); };
+  const openEdit = (p: Peca) => {
+    setEditingId(p.id);
+    setForm({ nome: p.nome, codigo: p.codigo, estoque: p.estoque, minimo: p.minimo });
+    setOpen(true);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -49,13 +58,17 @@ const Pecas = () => {
 
   useEffect(() => { load(); }, []);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const status = computeStatus(form.estoque, form.minimo);
-    const { error } = await supabase.from("pecas").insert({ ...form, status });
+    const payload = { ...form, status };
+    const { error } = editingId
+      ? await supabase.from("pecas").update(payload).eq("id", editingId)
+      : await supabase.from("pecas").insert(payload);
     if (error) return toast.error(error.message);
-    toast.success("Peça cadastrada");
-    setForm({ nome: "", codigo: "", estoque: 0, minimo: 0 });
+    toast.success(editingId ? "Peça atualizada" : "Peça cadastrada");
+    setForm(emptyForm);
+    setEditingId(null);
     setOpen(false);
     load();
   };
@@ -84,10 +97,10 @@ const Pecas = () => {
         </div>
         {isStaff && (
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" /> Nova Peça</Button></DialogTrigger>
+            <DialogTrigger asChild><Button onClick={openNew}><Plus className="h-4 w-4 mr-2" /> Nova Peça</Button></DialogTrigger>
             <DialogContent>
-              <DialogHeader><DialogTitle>Nova peça</DialogTitle></DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-3">
+              <DialogHeader><DialogTitle>{editingId ? "Editar peça" : "Nova peça"}</DialogTitle></DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-3">
                 <div><Label>Nome</Label><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} required /></div>
                 <div><Label>Código</Label><Input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} required /></div>
                 <div className="grid grid-cols-2 gap-2">
@@ -138,7 +151,12 @@ const Pecas = () => {
                   <td className="py-3 text-center">{p.minimo}</td>
                   <td className="py-3"><span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusColors[p.status] ?? ""}`}>{p.status}</span></td>
                   <td className="py-3 text-right">
-                    {isStaff && <button onClick={() => handleDelete(p.id)} className="text-muted-foreground hover:text-accent p-1"><Trash2 className="h-4 w-4" /></button>}
+                    {isStaff && (
+                      <div className="inline-flex items-center gap-1">
+                        <button onClick={() => openEdit(p)} className="text-muted-foreground hover:text-primary p-1" title="Editar"><Pencil className="h-4 w-4" /></button>
+                        <button onClick={() => handleDelete(p.id)} className="text-muted-foreground hover:text-accent p-1" title="Excluir"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
