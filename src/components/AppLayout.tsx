@@ -75,22 +75,6 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
               {item.label}
             </NavLink>
           ))}
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${
-                  isActive
-                    ? "bg-sidebar-accent font-semibold"
-                    : "hover:bg-sidebar-accent/50 opacity-80"
-                }`
-              }
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </NavLink>
-          ))}
         </nav>
 
         {/* Footer */}
