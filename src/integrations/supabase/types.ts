@@ -17,9 +17,12 @@ export type Database = {
       computadores: {
         Row: {
           created_at: string
+          data_aquisicao: string | null
           id: string
+          laboratorio_id: string | null
           localizacao: string
           nome: string
+          numero_serie: string | null
           patrimonio: string
           status: string
           ultima_manutencao: string | null
@@ -27,9 +30,12 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          data_aquisicao?: string | null
           id?: string
+          laboratorio_id?: string | null
           localizacao: string
           nome: string
+          numero_serie?: string | null
           patrimonio: string
           status?: string
           ultima_manutencao?: string | null
@@ -37,12 +43,47 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          data_aquisicao?: string | null
           id?: string
+          laboratorio_id?: string | null
           localizacao?: string
           nome?: string
+          numero_serie?: string | null
           patrimonio?: string
           status?: string
           ultima_manutencao?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "computadores_laboratorio_id_fkey"
+            columns: ["laboratorio_id"]
+            isOneToOne: false
+            referencedRelation: "laboratorios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      laboratorios: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          id: string
+          nome_laboratorio: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome_laboratorio: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome_laboratorio?: string
           updated_at?: string
         }
         Relationships: []
@@ -53,6 +94,7 @@ export type Database = {
           created_at: string
           data: string
           id: string
+          peca_utilizada: string | null
           prioridade: string
           problema: string
           status: string
@@ -64,6 +106,7 @@ export type Database = {
           created_at?: string
           data?: string
           id?: string
+          peca_utilizada?: string | null
           prioridade?: string
           problema: string
           status?: string
@@ -75,6 +118,7 @@ export type Database = {
           created_at?: string
           data?: string
           id?: string
+          peca_utilizada?: string | null
           prioridade?: string
           problema?: string
           status?: string
