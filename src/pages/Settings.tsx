@@ -369,15 +369,15 @@ ON CONFLICT DO NOTHING;`;
           <div className="grid md:grid-cols-2 gap-4">
             <Card className="rounded-2xl shadow-md">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-green-600" /> Verificação de integridade</CardTitle>
+              <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> Verificação de integridade</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <div className={hasAdmin ? "text-green-600" : "text-destructive"}>
+                <div className={hasAdmin ? "text-primary" : "text-destructive"}>
                   {hasAdmin ? "✅" : "❌"} Sistema possui pelo menos 1 admin
                 </div>
-                <div className="text-green-600">✅ RLS ativo em todas as tabelas</div>
-                <div className="text-green-600">✅ Trigger de auditoria ativo</div>
-                <div className="text-green-600">✅ Proteção contra remoção do último admin</div>
+                <div className="text-primary">✅ RLS ativo em todas as tabelas</div>
+                <div className="text-primary">✅ Trigger de auditoria ativo</div>
+                <div className="text-primary">✅ Proteção contra remoção do último admin</div>
               </CardContent>
             </Card>
 
