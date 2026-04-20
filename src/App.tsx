@@ -42,7 +42,7 @@ const App = () => (
             <Route path="/relatorios" element={protect(<Relatorios />)} />
             <Route path="/usuarios" element={<ProtectedRoute><RoleRoute allow={["admin"]}><AppLayout><Usuarios /></AppLayout></RoleRoute></ProtectedRoute>} />
             <Route path="/ajuda" element={protect(<Help />)} />
-            <Route path="/configuracoes" element={protect(<Settings />)} />
+            <Route path="/configuracoes" element={<ProtectedRoute><RoleRoute allow={["admin"]}><AppLayout><Settings /></AppLayout></RoleRoute></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
