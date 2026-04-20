@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_preferences: {
+        Row: {
+          block_after_failed: boolean
+          log_role_changes: boolean
+          notify_new_users: boolean
+          require_2fa: boolean
+          theme: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          block_after_failed?: boolean
+          log_role_changes?: boolean
+          notify_new_users?: boolean
+          require_2fa?: boolean
+          theme?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          block_after_failed?: boolean
+          log_role_changes?: boolean
+          notify_new_users?: boolean
+          require_2fa?: boolean
+          theme?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       computadores: {
         Row: {
           created_at: string
@@ -184,6 +214,42 @@ export type Database = {
           nome?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      role_change_logs: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          changed_by_email: string | null
+          changed_user: string | null
+          changed_user_email: string | null
+          id: number
+          new_role: string | null
+          old_role: string | null
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_email?: string | null
+          changed_user?: string | null
+          changed_user_email?: string | null
+          id?: number
+          new_role?: string | null
+          old_role?: string | null
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_email?: string | null
+          changed_user?: string | null
+          changed_user_email?: string | null
+          id?: number
+          new_role?: string | null
+          old_role?: string | null
         }
         Relationships: []
       }
