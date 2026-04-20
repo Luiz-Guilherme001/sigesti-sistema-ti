@@ -79,12 +79,20 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
 
         {/* Footer */}
         <div className="p-4 border-t border-sidebar-border space-y-1">
-          <button className="flex items-center gap-3 px-2 py-2 text-sm opacity-70 hover:opacity-100 w-full">
+          <NavLink
+            to="/configuracoes"
+            onClick={() => setSidebarOpen(false)}
+            className="flex items-center gap-3 px-2 py-2 text-sm opacity-70 hover:opacity-100 w-full"
+          >
             <Settings className="h-4 w-4" /> Configurações
-          </button>
-          <button className="flex items-center gap-3 px-2 py-2 text-sm opacity-70 hover:opacity-100 w-full">
+          </NavLink>
+          <NavLink
+            to="/ajuda"
+            onClick={() => setSidebarOpen(false)}
+            className="flex items-center gap-3 px-2 py-2 text-sm opacity-70 hover:opacity-100 w-full"
+          >
             <HelpCircle className="h-4 w-4" /> Ajuda
-          </button>
+          </NavLink>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-2 py-2 text-sm opacity-70 hover:opacity-100 text-accent w-full"
