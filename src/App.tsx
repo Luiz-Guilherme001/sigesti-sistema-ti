@@ -14,6 +14,8 @@ import Manutencao from "./pages/Manutencao";
 import Pecas from "./pages/Pecas";
 import Relatorios from "./pages/Relatorios";
 import Usuarios from "./pages/Usuarios";
+import Help from "./pages/Help";
+import Settings from "./pages/Settings";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +41,8 @@ const App = () => (
             <Route path="/pecas" element={protect(<Pecas />)} />
             <Route path="/relatorios" element={protect(<Relatorios />)} />
             <Route path="/usuarios" element={<ProtectedRoute><RoleRoute allow={["admin"]}><AppLayout><Usuarios /></AppLayout></RoleRoute></ProtectedRoute>} />
+            <Route path="/ajuda" element={protect(<Help />)} />
+            <Route path="/configuracoes" element={protect(<Settings />)} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
