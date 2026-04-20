@@ -48,7 +48,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
         {/* Logo */}
         <div className="p-5 border-b border-sidebar-border">
           <h1 className="text-xl font-bold">
-            EETEPA <span className="text-accent">Gest</span>TI
+            EETEPA <span className="text-accent">Ges</span>TI
           </h1>
           <p className="text-xs opacity-70 mt-1">Vilhena Alves</p>
         </div>
@@ -122,7 +122,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
           </button>
 
           <h2 className="text-lg font-bold text-primary hidden md:block">
-            EETEPA <span className="text-accent">Gest</span>TI
+            EETEPA <span className="text-accent">Ges</span>TI
           </h2>
 
           <div className="flex-1 max-w-md mx-4 hidden md:block">

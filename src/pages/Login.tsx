@@ -45,7 +45,7 @@ const Login = () => {
         <div className="flex-1 p-8 md:p-12 flex flex-col justify-center">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-primary">
-              EETEPA <span className="text-accent">Gest</span>TI
+              EETEPA <span className="text-accent">Ges</span>TI
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
               Gestão inteligente de computadores e manutenção
