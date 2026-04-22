@@ -335,20 +335,45 @@ ON CONFLICT DO NOTHING;`;
         <TabsContent value="logs">
           <Card className="rounded-2xl shadow-md">
             <CardHeader>
-              <CardTitle>Logs de Alterações de Papel</CardTitle>
-              <CardDescription>Auditoria automática de mudanças em papéis de usuários</CardDescription>
+              <CardTitle>{logType === "role" ? "Logs de Alterações de Papel" : "Logs de Acesso"}</CardTitle>
+              <CardDescription>
+                {logType === "role"
+                  ? "Auditoria automática de mudanças em papéis de usuários"
+                  : "Histórico de logins e logouts no sistema"}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3 mb-4">
-                <Select value={logFilter} onValueChange={(v) => { setLogFilter(v); setLogPage(1); }}>
-                  <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                <Select value={logType} onValueChange={(v: "role" | "access") => setLogType(v)}>
+                  <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="tec">Técnico</SelectItem>
-                    <SelectItem value="usuario">Usuário</SelectItem>
+                    <SelectItem value="role">📋 Mudanças de Papel</SelectItem>
+                    <SelectItem value="access">🌐 Logs de Acesso</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {logType === "role" ? (
+                  <Select value={logFilter} onValueChange={(v) => { setLogFilter(v); setLogPage(1); }}>
+                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="tec">Técnico</SelectItem>
+                      <SelectItem value="usuario">Usuário</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={accessUserFilter} onValueChange={(v) => { setAccessUserFilter(v); setLogPage(1); }}>
+                    <SelectTrigger className="w-64"><SelectValue placeholder="Filtrar por usuário" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os usuários</SelectItem>
+                      {accessUsers.map((e) => (
+                        <SelectItem key={e} value={e}>{e}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
                 <Button variant="outline" onClick={exportLogsCSV}>
                   <Download className="h-4 w-4" /> Exportar CSV
                 </Button>
@@ -362,15 +387,28 @@ ON CONFLICT DO NOTHING;`;
                   <TableHeader>
                     <TableRow>
                       <TableHead>Data/Hora</TableHead>
-                      <TableHead>Quem fez</TableHead>
-                      <TableHead>Usuário alterado</TableHead>
-                      <TableHead>Ação</TableHead>
+                      {logType === "role" ? (
+                        <>
+                          <TableHead>Quem fez</TableHead>
+                          <TableHead>Usuário alterado</TableHead>
+                          <TableHead>Ação</TableHead>
+                        </>
+                      ) : (
+                        <>
+                          <TableHead>Usuário</TableHead>
+                          <TableHead>Ação</TableHead>
+                        </>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {logs.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Nenhum log encontrado</TableCell></TableRow>
-                    ) : logs.map((l) => (
+                      <TableRow>
+                        <TableCell colSpan={logType === "role" ? 4 : 3} className="text-center text-muted-foreground">
+                          Nenhum log encontrado
+                        </TableCell>
+                      </TableRow>
+                    ) : logType === "role" ? logs.map((l) => (
                       <TableRow key={l.id}>
                         <TableCell className="whitespace-nowrap">{formatDate(l.changed_at)}</TableCell>
                         <TableCell>{l.changed_by_email ?? "—"}</TableCell>
@@ -378,6 +416,16 @@ ON CONFLICT DO NOTHING;`;
                         <TableCell>
                           <Badge variant={l.action === "DELETE" ? "destructive" : "secondary"}>
                             {l.action} {l.old_role && `${l.old_role} → `}{l.new_role ?? ""}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    )) : logs.map((l) => (
+                      <TableRow key={l.id}>
+                        <TableCell className="whitespace-nowrap">{formatDate(l.created_at)}</TableCell>
+                        <TableCell>{l.user_email ?? "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={l.action === "logout" ? "destructive" : "secondary"}>
+                            {l.action}
                           </Badge>
                         </TableCell>
                       </TableRow>
