@@ -127,15 +127,24 @@ const Settings = () => {
   const loadLogs = async () => {
     const from = (logPage - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    let q = supabase.from("role_change_logs").select("*", { count: "exact" })
-      .order("changed_at", { ascending: false }).range(from, to);
-    if (logFilter !== "all") {
-      const role = logFilter === "tec" ? "tecnico" : logFilter;
-      q = q.or(`new_role.eq.${role},old_role.eq.${role}`);
+    if (logType === "role") {
+      let q = supabase.from("role_change_logs").select("*", { count: "exact" })
+        .order("changed_at", { ascending: false }).range(from, to);
+      if (logFilter !== "all") {
+        const role = logFilter === "tec" ? "tecnico" : logFilter;
+        q = q.or(`new_role.eq.${role},old_role.eq.${role}`);
+      }
+      const { data, count } = await q;
+      setLogs(data ?? []);
+      setLogTotal(count ?? 0);
+    } else {
+      let q = supabase.from("access_logs").select("*", { count: "exact" })
+        .order("created_at", { ascending: false }).range(from, to);
+      if (accessUserFilter !== "all") q = q.eq("user_email", accessUserFilter);
+      const { data, count } = await q;
+      setLogs(data ?? []);
+      setLogTotal(count ?? 0);
     }
-    const { data, count } = await q;
-    setLogs(data ?? []);
-    setLogTotal(count ?? 0);
   };
 
   const totalPages = Math.max(1, Math.ceil(logTotal / PAGE_SIZE));
