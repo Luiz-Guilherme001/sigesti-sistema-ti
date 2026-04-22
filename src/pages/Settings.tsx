@@ -49,8 +49,11 @@ const Settings = () => {
   const [stats, setStats] = useState({ total: 0, admins: 0, tecnicos: 0, usuarios: 0, novos7d: 0 });
 
   // Logs
+  const [logType, setLogType] = useState<"role" | "access">("role");
   const [logs, setLogs] = useState<any[]>([]);
   const [logFilter, setLogFilter] = useState<string>("all");
+  const [accessUserFilter, setAccessUserFilter] = useState<string>("all");
+  const [accessUsers, setAccessUsers] = useState<string[]>([]);
   const [logPage, setLogPage] = useState(1);
   const [logTotal, setLogTotal] = useState(0);
 
