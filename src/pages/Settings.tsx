@@ -170,23 +170,40 @@ const Settings = () => {
   };
 
   const exportLogsCSV = async () => {
-    let q = supabase.from("role_change_logs").select("*").order("changed_at", { ascending: false });
-    if (logFilter !== "all") {
-      const role = logFilter === "tec" ? "tecnico" : logFilter;
-      q = q.or(`new_role.eq.${role},old_role.eq.${role}`);
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    let headers: string[] = [];
+    let rows: string[][] = [];
+    let filename = "";
+
+    if (logType === "role") {
+      let q = supabase.from("role_change_logs").select("*").order("changed_at", { ascending: false });
+      if (logFilter !== "all") {
+        const role = logFilter === "tec" ? "tecnico" : logFilter;
+        q = q.or(`new_role.eq.${role},old_role.eq.${role}`);
+      }
+      const { data } = await q;
+      if (!data?.length) { toast.error("Nenhum log para exportar"); return; }
+      headers = ["Data/Hora", "Quem fez", "Usuário alterado", "Ação", "Papel anterior", "Papel novo"];
+      rows = data.map((l: any) => [
+        formatDate(l.changed_at), l.changed_by_email ?? "", l.changed_user_email ?? "",
+        l.action, l.old_role ?? "", l.new_role ?? "",
+      ]);
+      filename = `logs_papel_${today}.csv`;
+    } else {
+      let q = supabase.from("access_logs").select("*").order("created_at", { ascending: false });
+      if (accessUserFilter !== "all") q = q.eq("user_email", accessUserFilter);
+      const { data } = await q;
+      if (!data?.length) { toast.error("Nenhum log para exportar"); return; }
+      headers = ["Data/Hora", "Usuário", "Ação"];
+      rows = data.map((l: any) => [formatDate(l.created_at), l.user_email ?? "", l.action ?? ""]);
+      filename = `logs_acesso_${today}.csv`;
     }
-    const { data } = await q;
-    if (!data?.length) { toast.error("Nenhum log para exportar"); return; }
-    const headers = ["Data/Hora", "Quem fez", "Usuário alterado", "Ação", "Papel anterior", "Papel novo"];
-    const rows = data.map((l) => [
-      formatDate(l.changed_at), l.changed_by_email ?? "", l.changed_user_email ?? "",
-      l.action, l.old_role ?? "", l.new_role ?? "",
-    ]);
+
     const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `logs-papel-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
     toast.success("CSV exportado");
   };
