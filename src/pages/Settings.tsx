@@ -96,7 +96,15 @@ const Settings = () => {
     loadStats();
   }, [user]);
 
-  useEffect(() => { loadLogs(); }, [logFilter, logPage]);
+  useEffect(() => { loadLogs(); }, [logFilter, logPage, logType, accessUserFilter]);
+  useEffect(() => { setLogPage(1); }, [logType]);
+  useEffect(() => {
+    if (logType !== "access") return;
+    supabase.from("access_logs").select("user_email").order("user_email").then(({ data }) => {
+      const unique = Array.from(new Set((data ?? []).map((r: any) => r.user_email))).filter(Boolean);
+      setAccessUsers(unique);
+    });
+  }, [logType]);
 
   const loadStats = async () => {
     const [{ count: total }, { data: roles }] = await Promise.all([
