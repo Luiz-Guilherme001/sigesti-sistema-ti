@@ -219,9 +219,7 @@ ON CONFLICT DO NOTHING;`;
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
           <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="seguranca">Segurança</TabsTrigger>
-          <TabsTrigger value="ajuda">Ajuda</TabsTrigger>
-          <TabsTrigger value="preferencias">Preferências</TabsTrigger>
+          <TabsTrigger value="seguranca">Segurança & Ajuda</TabsTrigger>
         </TabsList>
 
         {/* PERFIL */}
