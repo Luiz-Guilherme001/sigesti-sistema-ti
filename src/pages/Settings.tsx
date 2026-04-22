@@ -219,9 +219,7 @@ ON CONFLICT DO NOTHING;`;
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
           <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="seguranca">Segurança</TabsTrigger>
-          <TabsTrigger value="ajuda">Ajuda</TabsTrigger>
-          <TabsTrigger value="preferencias">Preferências</TabsTrigger>
+          <TabsTrigger value="seguranca">Segurança & Ajuda</TabsTrigger>
         </TabsList>
 
         {/* PERFIL */}
@@ -364,12 +362,12 @@ ON CONFLICT DO NOTHING;`;
           </Card>
         </TabsContent>
 
-        {/* SEGURANÇA */}
+        {/* SEGURANÇA + AJUDA */}
         <TabsContent value="seguranca">
           <div className="grid md:grid-cols-2 gap-4">
             <Card className="rounded-2xl shadow-md">
               <CardHeader>
-              <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> Verificação de integridade</CardTitle>
+                <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> Verificação de integridade</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className={hasAdmin ? "text-primary" : "text-destructive"}>
@@ -384,7 +382,7 @@ ON CONFLICT DO NOTHING;`;
             <Card className="rounded-2xl shadow-md border-destructive/40">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-destructive"><AlertTriangle className="h-5 w-5" /> Zona de Perigo</CardTitle>
-                <CardDescription>Script de emergência para promover admin via SQL Editor</CardDescription>
+                <CardDescription>Script de emergência para promover admin</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap">{emergencySQL}</pre>
@@ -393,76 +391,30 @@ ON CONFLICT DO NOTHING;`;
                 </Button>
               </CardContent>
             </Card>
+
+            <Card className="rounded-2xl shadow-md md:col-span-2">
+              <CardHeader>
+                <CardTitle>Ajuda e Suporte</CardTitle>
+                <CardDescription>Perguntas frequentes e contato</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="q1">
+                    <AccordionTrigger>Como promover um usuário a admin?</AccordionTrigger>
+                    <AccordionContent>Acesse Usuários, clique no botão de promover na linha do usuário desejado.</AccordionContent>
+                  </AccordionItem>
+                  <AccordionItem value="q2">
+                    <AccordionTrigger>O que fazer se eu for o único admin e quiser sair?</AccordionTrigger>
+                    <AccordionContent>Promova outro usuário a admin antes de sair. O sistema impede a remoção do último administrador.</AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                <div className="space-y-2 text-sm border-t pt-4">
+                  <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> suporte@empresa.com</div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </TabsContent>
-
-        {/* AJUDA */}
-        <TabsContent value="ajuda">
-          <Card className="rounded-2xl shadow-md">
-            <CardHeader>
-              <CardTitle>Ajuda e Suporte</CardTitle>
-              <CardDescription>Perguntas frequentes e contato</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <Accordion type="single" collapsible>
-                <AccordionItem value="q1">
-                  <AccordionTrigger>Como promover um usuário a admin?</AccordionTrigger>
-                  <AccordionContent>Acesse Usuários, clique no botão de promover na linha do usuário desejado.</AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="q2">
-                  <AccordionTrigger>O que fazer se eu for o único admin e quiser sair?</AccordionTrigger>
-                  <AccordionContent>Promova outro usuário a admin antes de sair. O sistema impede a remoção do último administrador.</AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="q3">
-                  <AccordionTrigger>Como um técnico acessa as manutenções?</AccordionTrigger>
-                  <AccordionContent>O técnico acessa a página /manutencao após login. Tem permissão para criar e editar manutenções.</AccordionContent>
-                </AccordionItem>
-              </Accordion>
-
-              <div className="space-y-2 text-sm border-t pt-4">
-                <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> suporte@empresa.com</div>
-                <div className="flex items-center gap-2"><FileText className="h-4 w-4" /> https://docs.empresa.com</div>
-                <div className="flex items-center gap-2"><MessageCircle className="h-4 w-4" /> Disponível em horário comercial</div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* PREFERÊNCIAS */}
-        <TabsContent value="preferencias">
-          <Card className="rounded-2xl shadow-md">
-            <CardHeader>
-              <CardTitle>Preferências</CardTitle>
-              <CardDescription>Personalize o comportamento do sistema</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <PrefCheck label="Enviar notificações por email sobre novos usuários"
-                  checked={prefs.notify_new_users}
-                  onChange={(v) => setPrefs((p) => ({ ...p, notify_new_users: v }))} />
-                <PrefCheck label="Registrar logs de todas as alterações de papel"
-                  checked={prefs.log_role_changes}
-                  onChange={(v) => setPrefs((p) => ({ ...p, log_role_changes: v }))} />
-                <PrefCheck label="Exigir 2FA para usuários admin"
-                  checked={prefs.require_2fa}
-                  onChange={(v) => setPrefs((p) => ({ ...p, require_2fa: v }))} />
-                <PrefCheck label="Bloquear acesso após 5 tentativas falhas"
-                  checked={prefs.block_after_failed}
-                  onChange={(v) => setPrefs((p) => ({ ...p, block_after_failed: v }))} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Tema do sistema</Label>
-                <RadioGroup value={prefs.theme} onValueChange={handleThemeChange} className="flex gap-6">
-                  <div className="flex items-center gap-2"><RadioGroupItem value="light" id="t-light" /><Label htmlFor="t-light">Claro</Label></div>
-                  <div className="flex items-center gap-2"><RadioGroupItem value="dark" id="t-dark" /><Label htmlFor="t-dark">Escuro</Label></div>
-                  <div className="flex items-center gap-2"><RadioGroupItem value="system" id="t-sys" /><Label htmlFor="t-sys">Sistema</Label></div>
-                </RadioGroup>
-              </div>
-
-              <Button onClick={savePrefs}>Salvar Preferências</Button>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
 
