@@ -49,8 +49,11 @@ const Settings = () => {
   const [stats, setStats] = useState({ total: 0, admins: 0, tecnicos: 0, usuarios: 0, novos7d: 0 });
 
   // Logs
+  const [logType, setLogType] = useState<"role" | "access">("role");
   const [logs, setLogs] = useState<any[]>([]);
   const [logFilter, setLogFilter] = useState<string>("all");
+  const [accessUserFilter, setAccessUserFilter] = useState<string>("all");
+  const [accessUsers, setAccessUsers] = useState<string[]>([]);
   const [logPage, setLogPage] = useState(1);
   const [logTotal, setLogTotal] = useState(0);
 
@@ -93,7 +96,15 @@ const Settings = () => {
     loadStats();
   }, [user]);
 
-  useEffect(() => { loadLogs(); }, [logFilter, logPage]);
+  useEffect(() => { loadLogs(); }, [logFilter, logPage, logType, accessUserFilter]);
+  useEffect(() => { setLogPage(1); }, [logType]);
+  useEffect(() => {
+    if (logType !== "access") return;
+    supabase.from("access_logs").select("user_email").order("user_email").then(({ data }) => {
+      const unique = Array.from(new Set((data ?? []).map((r: any) => r.user_email))).filter(Boolean);
+      setAccessUsers(unique);
+    });
+  }, [logType]);
 
   const loadStats = async () => {
     const [{ count: total }, { data: roles }] = await Promise.all([
@@ -116,15 +127,24 @@ const Settings = () => {
   const loadLogs = async () => {
     const from = (logPage - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    let q = supabase.from("role_change_logs").select("*", { count: "exact" })
-      .order("changed_at", { ascending: false }).range(from, to);
-    if (logFilter !== "all") {
-      const role = logFilter === "tec" ? "tecnico" : logFilter;
-      q = q.or(`new_role.eq.${role},old_role.eq.${role}`);
+    if (logType === "role") {
+      let q = supabase.from("role_change_logs").select("*", { count: "exact" })
+        .order("changed_at", { ascending: false }).range(from, to);
+      if (logFilter !== "all") {
+        const role = logFilter === "tec" ? "tecnico" : logFilter;
+        q = q.or(`new_role.eq.${role},old_role.eq.${role}`);
+      }
+      const { data, count } = await q;
+      setLogs(data ?? []);
+      setLogTotal(count ?? 0);
+    } else {
+      let q = supabase.from("access_logs").select("*", { count: "exact" })
+        .order("created_at", { ascending: false }).range(from, to);
+      if (accessUserFilter !== "all") q = q.eq("user_email", accessUserFilter);
+      const { data, count } = await q;
+      setLogs(data ?? []);
+      setLogTotal(count ?? 0);
     }
-    const { data, count } = await q;
-    setLogs(data ?? []);
-    setLogTotal(count ?? 0);
   };
 
   const totalPages = Math.max(1, Math.ceil(logTotal / PAGE_SIZE));
@@ -150,23 +170,40 @@ const Settings = () => {
   };
 
   const exportLogsCSV = async () => {
-    let q = supabase.from("role_change_logs").select("*").order("changed_at", { ascending: false });
-    if (logFilter !== "all") {
-      const role = logFilter === "tec" ? "tecnico" : logFilter;
-      q = q.or(`new_role.eq.${role},old_role.eq.${role}`);
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    let headers: string[] = [];
+    let rows: string[][] = [];
+    let filename = "";
+
+    if (logType === "role") {
+      let q = supabase.from("role_change_logs").select("*").order("changed_at", { ascending: false });
+      if (logFilter !== "all") {
+        const role = logFilter === "tec" ? "tecnico" : logFilter;
+        q = q.or(`new_role.eq.${role},old_role.eq.${role}`);
+      }
+      const { data } = await q;
+      if (!data?.length) { toast.error("Nenhum log para exportar"); return; }
+      headers = ["Data/Hora", "Quem fez", "Usuário alterado", "Ação", "Papel anterior", "Papel novo"];
+      rows = data.map((l: any) => [
+        formatDate(l.changed_at), l.changed_by_email ?? "", l.changed_user_email ?? "",
+        l.action, l.old_role ?? "", l.new_role ?? "",
+      ]);
+      filename = `logs_papel_${today}.csv`;
+    } else {
+      let q = supabase.from("access_logs").select("*").order("created_at", { ascending: false });
+      if (accessUserFilter !== "all") q = q.eq("user_email", accessUserFilter);
+      const { data } = await q;
+      if (!data?.length) { toast.error("Nenhum log para exportar"); return; }
+      headers = ["Data/Hora", "Usuário", "Ação"];
+      rows = data.map((l: any) => [formatDate(l.created_at), l.user_email ?? "", l.action ?? ""]);
+      filename = `logs_acesso_${today}.csv`;
     }
-    const { data } = await q;
-    if (!data?.length) { toast.error("Nenhum log para exportar"); return; }
-    const headers = ["Data/Hora", "Quem fez", "Usuário alterado", "Ação", "Papel anterior", "Papel novo"];
-    const rows = data.map((l) => [
-      formatDate(l.changed_at), l.changed_by_email ?? "", l.changed_user_email ?? "",
-      l.action, l.old_role ?? "", l.new_role ?? "",
-    ]);
+
     const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `logs-papel-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
     toast.success("CSV exportado");
   };
@@ -298,20 +335,45 @@ ON CONFLICT DO NOTHING;`;
         <TabsContent value="logs">
           <Card className="rounded-2xl shadow-md">
             <CardHeader>
-              <CardTitle>Logs de Alterações de Papel</CardTitle>
-              <CardDescription>Auditoria automática de mudanças em papéis de usuários</CardDescription>
+              <CardTitle>{logType === "role" ? "Logs de Alterações de Papel" : "Logs de Acesso"}</CardTitle>
+              <CardDescription>
+                {logType === "role"
+                  ? "Auditoria automática de mudanças em papéis de usuários"
+                  : "Histórico de logins e logouts no sistema"}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3 mb-4">
-                <Select value={logFilter} onValueChange={(v) => { setLogFilter(v); setLogPage(1); }}>
-                  <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                <Select value={logType} onValueChange={(v: "role" | "access") => setLogType(v)}>
+                  <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="tec">Técnico</SelectItem>
-                    <SelectItem value="usuario">Usuário</SelectItem>
+                    <SelectItem value="role">📋 Mudanças de Papel</SelectItem>
+                    <SelectItem value="access">🌐 Logs de Acesso</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {logType === "role" ? (
+                  <Select value={logFilter} onValueChange={(v) => { setLogFilter(v); setLogPage(1); }}>
+                    <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="tec">Técnico</SelectItem>
+                      <SelectItem value="usuario">Usuário</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={accessUserFilter} onValueChange={(v) => { setAccessUserFilter(v); setLogPage(1); }}>
+                    <SelectTrigger className="w-64"><SelectValue placeholder="Filtrar por usuário" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os usuários</SelectItem>
+                      {accessUsers.map((e) => (
+                        <SelectItem key={e} value={e}>{e}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
                 <Button variant="outline" onClick={exportLogsCSV}>
                   <Download className="h-4 w-4" /> Exportar CSV
                 </Button>
@@ -325,15 +387,28 @@ ON CONFLICT DO NOTHING;`;
                   <TableHeader>
                     <TableRow>
                       <TableHead>Data/Hora</TableHead>
-                      <TableHead>Quem fez</TableHead>
-                      <TableHead>Usuário alterado</TableHead>
-                      <TableHead>Ação</TableHead>
+                      {logType === "role" ? (
+                        <>
+                          <TableHead>Quem fez</TableHead>
+                          <TableHead>Usuário alterado</TableHead>
+                          <TableHead>Ação</TableHead>
+                        </>
+                      ) : (
+                        <>
+                          <TableHead>Usuário</TableHead>
+                          <TableHead>Ação</TableHead>
+                        </>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {logs.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Nenhum log encontrado</TableCell></TableRow>
-                    ) : logs.map((l) => (
+                      <TableRow>
+                        <TableCell colSpan={logType === "role" ? 4 : 3} className="text-center text-muted-foreground">
+                          Nenhum log encontrado
+                        </TableCell>
+                      </TableRow>
+                    ) : logType === "role" ? logs.map((l) => (
                       <TableRow key={l.id}>
                         <TableCell className="whitespace-nowrap">{formatDate(l.changed_at)}</TableCell>
                         <TableCell>{l.changed_by_email ?? "—"}</TableCell>
@@ -341,6 +416,16 @@ ON CONFLICT DO NOTHING;`;
                         <TableCell>
                           <Badge variant={l.action === "DELETE" ? "destructive" : "secondary"}>
                             {l.action} {l.old_role && `${l.old_role} → `}{l.new_role ?? ""}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    )) : logs.map((l) => (
+                      <TableRow key={l.id}>
+                        <TableCell className="whitespace-nowrap">{formatDate(l.created_at)}</TableCell>
+                        <TableCell>{l.user_email ?? "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={l.action === "logout" ? "destructive" : "secondary"}>
+                            {l.action}
                           </Badge>
                         </TableCell>
                       </TableRow>
