@@ -46,7 +46,7 @@ const Login = () => {
 
     setResetLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(emailReset, {
-      redirectTo: "http://projeto-sigesti.vercel.app/atualizar-senha",
+      redirectTo: `${window.location.origin}/atualizar-senha`,
     });
     setResetLoading(false);
 
