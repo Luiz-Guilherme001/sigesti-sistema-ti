@@ -63,8 +63,8 @@ const Pecas = () => {
     const status = computeStatus(form.estoque, form.minimo);
     const payload = { ...form, status };
     const { error } = editingId
-      ? await supabase.from("pecas").update(payload).eq("id", editingId)
-      : await supabase.from("pecas").insert(payload);
+  ? await supabase.from("pecas").update(payload).eq("id", editingId)
+  : await supabase.from("pecas").insert({ ...payload, id: crypto.randomUUID() });
     if (error) return toast.error(error.message);
     toast.success(editingId ? "Peça atualizada" : "Peça cadastrada");
     setForm(emptyForm);

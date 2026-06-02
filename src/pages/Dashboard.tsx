@@ -3,73 +3,196 @@ import { Monitor, Wrench, Package, CheckCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { Database } from "@/integrations/supabase/types";
+
+type Chamado = Database['public']['Tables']['chamados']['Row'];
+type Manutencao = Database['public']['Tables']['manutencoes']['Row'];
+type Peca = Database['public']['Tables']['pecas']['Row'];
 
 const statusColors: Record<string, string> = {
   "Em andamento": "bg-info/10 text-info",
   Concluída: "bg-success/10 text-success",
   Pendente: "bg-warning/10 text-warning",
 };
+
 const stockStatusColors: Record<string, string> = {
   Baixo: "bg-warning/10 text-warning",
   Crítico: "bg-accent/10 text-accent",
   Normal: "bg-success/10 text-success",
 };
 
-interface Manut { id: string; computador: string; problema: string; data: string; status: string; }
-interface Peca { id: string; nome: string; codigo: string; estoque: number; minimo: number; status: string; }
-
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, isStaff, isUser } = useAuth();
   const [nome, setNome] = useState("");
+  const [loading, setLoading] = useState(true);
+
   const [totals, setTotals] = useState({ comp: 0, pend: 0, falta: 0, conc: 0 });
-  const [recentes, setRecentes] = useState<Manut[]>([]);
+  const [recentes, setRecentes] = useState<Manutencao[]>([]);
   const [pecasBaixas, setPecasBaixas] = useState<Peca[]>([]);
   const [chart, setChart] = useState<{ dia: string; concluidas: number; emAndamento: number; pendentes: number }[]>([]);
 
+  const [meusChamados, setMeusChamados] = useState<Chamado[]>([]);
+  const [chamadosStats, setChamadosStats] = useState({ total: 0, abertos: 0, emAndamento: 0, resolvidos: 0 });
+
   useEffect(() => {
-    if (user) supabase.from("profiles").select("nome").eq("user_id", user.id).maybeSingle()
-      .then(({ data }) => setNome(data?.nome ?? ""));
+    if (user) {
+      supabase.from("profiles").select("nome").eq("user_id", user.id).maybeSingle()
+        .then(({ data }) => setNome(data?.nome ?? ""));
+    }
   }, [user]);
 
   useEffect(() => {
-    (async () => {
-      const [{ count: comp }, { data: manut }, { data: pecas }] = await Promise.all([
-        supabase.from("computadores").select("*", { count: "exact", head: true }),
-        supabase.from("manutencoes").select("id, computador, problema, data, status").order("data", { ascending: false }),
-        supabase.from("pecas").select("*"),
-      ]);
-      const m = (manut ?? []) as Manut[];
-      setRecentes(m.slice(0, 5));
-      const p = (pecas ?? []) as Peca[];
-      setPecasBaixas(p.filter((x) => x.status !== "Normal"));
-      setTotals({
-        comp: comp ?? 0,
-        pend: m.filter((x) => x.status === "Pendente").length,
-        falta: p.filter((x) => x.status !== "Normal").length,
-        conc: m.filter((x) => x.status === "Concluída").length,
-      });
-      // Last 7 days chart
-      const days: Record<string, { concluidas: number; emAndamento: number; pendentes: number }> = {};
-      const today = new Date();
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(today); d.setDate(d.getDate() - i);
-        const k = d.toISOString().slice(0, 10);
-        days[k] = { concluidas: 0, emAndamento: 0, pendentes: 0 };
-      }
-      m.forEach((x) => {
-        const k = x.data.slice(0, 10);
-        if (!days[k]) return;
-        if (x.status === "Concluída") days[k].concluidas++;
-        else if (x.status === "Em andamento") days[k].emAndamento++;
-        else if (x.status === "Pendente") days[k].pendentes++;
-      });
-      setChart(Object.entries(days).map(([k, v]) => ({
-        dia: new Date(k).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-        ...v,
-      })));
-    })();
-  }, []);
+    const loadData = async () => {
+      setLoading(true);
 
+      if (isStaff) {
+        const [{ count: comp }, { data: manut }, { data: pecas }] = await Promise.all([
+          supabase.from("computadores").select("*", { count: "exact", head: true }),
+          supabase.from("manutencoes").select("*").order("data", { ascending: false }),
+          supabase.from("pecas").select("*"),
+        ]);
+
+        const m = (manut ?? []) as Manutencao[];
+        setRecentes(m.slice(0, 5));
+        const p = (pecas ?? []) as Peca[];
+        setPecasBaixas(p.filter((x) => x.status !== "Normal"));
+        setTotals({
+          comp: comp ?? 0,
+          pend: m.filter((x) => x.status === "Pendente").length,
+          falta: p.filter((x) => x.status !== "Normal").length,
+          conc: m.filter((x) => x.status === "Concluída").length,
+        });
+
+        const days: Record<string, { concluidas: number; emAndamento: number; pendentes: number }> = {};
+        const today = new Date();
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(today);
+          d.setDate(d.getDate() - i);
+          const k = d.toISOString().slice(0, 10);
+          days[k] = { concluidas: 0, emAndamento: 0, pendentes: 0 };
+        }
+
+        m.forEach((x) => {
+          if (x.data) {
+            const k = x.data.slice(0, 10);
+            if (days[k]) {
+              if (x.status === "Concluída") days[k].concluidas++;
+              else if (x.status === "Em andamento") days[k].emAndamento++;
+              else if (x.status === "Pendente") days[k].pendentes++;
+            }
+          }
+        });
+
+        setChart(Object.entries(days).map(([k, v]) => ({
+          dia: new Date(k).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+          ...v,
+        })));
+      }
+
+      else if (isUser && user?.email) {
+        const { data } = await supabase
+          .from("chamados")
+          .select("*")
+          .eq("solicitante_email", user.email)
+          .order("created_at", { ascending: false });
+
+        const chamados = (data ?? []) as Chamado[];
+        setMeusChamados(chamados.slice(0, 5));
+        setChamadosStats({
+          total: chamados.length,
+          abertos: chamados.filter((c) => c.status === "aberto").length,
+          emAndamento: chamados.filter((c) => c.status === "em_andamento").length,
+          resolvidos: chamados.filter((c) => c.status === "resolvido").length,
+        });
+      }
+
+      setLoading(false);
+    };
+
+    loadData();
+  }, [isStaff, isUser, user?.email]);
+
+  const formatDate = (d: string | null) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString("pt-BR");
+  };
+
+  const getStatusLabel = (s: string | null) => {
+    const labels: Record<string, string> = {
+      aberto: "Aberto", em_andamento: "Em andamento",
+      resolvido: "Resolvido", fechado: "Fechado"
+    };
+    return labels[s ?? ""] ?? s ?? "—";
+  };
+
+  const getStatusColor = (s: string | null) => {
+    const colors: Record<string, string> = {
+      aberto: "text-yellow-500 bg-yellow-500/10",
+      em_andamento: "text-blue-500 bg-blue-500/10",
+      resolvido: "text-green-500 bg-green-500/10",
+      fechado: "text-gray-500 bg-gray-500/10"
+    };
+    return colors[s ?? ""] ?? "text-gray-500 bg-gray-500/10";
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  // ========== VERSÃO PARA USUÁRIO COMUM ==========
+  if (isUser) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Bem-vindo{nome ? `, ${nome}` : ""}! 👋</h1>
+          <p className="text-sm text-muted-foreground">Acompanhe seus chamados de suporte</p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: "Total", value: chamadosStats.total, color: "text-primary" },
+            { label: "Abertos", value: chamadosStats.abertos, color: "text-yellow-500" },
+            { label: "Em andamento", value: chamadosStats.emAndamento, color: "text-blue-500" },
+            { label: "Resolvidos", value: chamadosStats.resolvidos, color: "text-green-500" },
+          ].map((stat) => (
+            <div key={stat.label} className="stat-card text-center">
+              <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="stat-card">
+          <h3 className="font-semibold text-foreground mb-4">Últimos Chamados</h3>
+          <div className="space-y-3">
+            {meusChamados.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum chamado encontrado</p>
+            )}
+            {meusChamados.map((chamado) => (
+              <div key={chamado.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{chamado.titulo}</p>
+                  <p className="text-xs text-muted-foreground">{chamado.equipamento_nome || "—"}</p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(chamado.status)}`}>
+                    {getStatusLabel(chamado.status)}
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-1">{formatDate(chamado.created_at)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ========== VERSÃO PARA STAFF (ADMIN/TECNICO) ==========
   const stats = [
     { label: "Computadores", value: totals.comp, icon: Monitor, color: "text-primary" },
     { label: "Pendentes", value: totals.pend, icon: Wrench, color: "text-warning" },
@@ -88,8 +211,8 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="stat-card flex items-start gap-4">
+        {stats.map((stat, index) => (
+          <div key={stat.label || index} className="stat-card flex items-start gap-4">
             <div className={`p-2.5 rounded-lg bg-secondary ${stat.color}`}><stat.icon className="h-5 w-5" /></div>
             <div>
               <p className="text-xs text-muted-foreground font-medium">{stat.label}</p>
@@ -121,14 +244,14 @@ const Dashboard = () => {
           <div className="space-y-3">
             {recentes.length === 0 && <p className="text-sm text-muted-foreground">Sem registros</p>}
             {recentes.map((m) => (
-              <div key={m.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+              <div key={m.id_serial} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                 <div>
                   <p className="text-sm font-medium text-foreground">{m.computador}</p>
                   <p className="text-xs text-muted-foreground">{m.problema}</p>
                 </div>
                 <div className="text-right">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[m.status] ?? ""}`}>{m.status}</span>
-                  <p className="text-xs text-muted-foreground mt-1">{new Date(m.data).toLocaleDateString("pt-BR")}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[m.status ?? ""] ?? ""}`}>{m.status}</span>
+                  <p className="text-xs text-muted-foreground mt-1">{m.data ? new Date(m.data).toLocaleDateString("pt-BR") : "—"}</p>
                 </div>
               </div>
             ))}
@@ -151,15 +274,15 @@ const Dashboard = () => {
             </thead>
             <tbody>
               {pecasBaixas.length === 0 && (
-                <tr><td colSpan={5} className="py-3 text-muted-foreground">Tudo em ordem ✅</td></tr>
+                <tr><td colSpan={5} className="py-3 text-muted-foreground text-center">Tudo em ordem ✅</td></tr>
               )}
-              {pecasBaixas.map((p) => (
-                <tr key={p.id} className="border-b border-border last:border-0">
+              {pecasBaixas.map((p, index) => (
+                <tr key={p.codigo ?? index} className="border-b border-border last:border-0">
                   <td className="py-2.5 font-medium text-foreground">{p.nome}</td>
                   <td className="py-2.5 text-muted-foreground">{p.codigo}</td>
                   <td className="py-2.5 text-center">{p.estoque}</td>
                   <td className="py-2.5 text-center">{p.minimo}</td>
-                  <td className="py-2.5"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stockStatusColors[p.status] ?? ""}`}>{p.status}</span></td>
+                  <td className="py-2.5"><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stockStatusColors[p.status ?? ""] ?? ""}`}>{p.status}</span></td>
                 </tr>
               ))}
             </tbody>

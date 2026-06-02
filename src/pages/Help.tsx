@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
-import { HelpCircle, MessageCircle } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 
 const faqs = [
   {
@@ -46,21 +45,6 @@ const Help = () => {
               </AccordionItem>
             ))}
           </Accordion>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Precisa de mais ajuda?</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
-            Entre em contato com nossa equipe de suporte técnico.
-          </p>
-          <Button variant="outline" className="gap-2">
-            <MessageCircle className="h-4 w-4" />
-            Falar com Suporte
-          </Button>
         </CardContent>
       </Card>
     </div>
