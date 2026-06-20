@@ -73,7 +73,7 @@ const Manutencao = () => {
   const [open, setOpen] = useState(false);
 
   const [editingId, setEditingId] =
-    useState<number | null>(null);
+    useState<string | null>(null);
 
   const [tecnicos, setTecnicos] = useState<
     { id: string; nome: string }[]
@@ -116,23 +116,40 @@ const Manutencao = () => {
   const [form, setForm] = useState(emptyForm);
 
   const loadTecnicos = async () => {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("user_id, nome")
-    .eq("role", "tecnico");
+    const { data: rolesData, error } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "tecnico");
 
-  if (error) {
-    toast.error("Erro ao buscar técnicos");
-    return;
-  }
+    if (error) {
+      toast.error("Erro ao buscar técnicos");
+      return;
+    }
 
-  const tecnicosFormatados = (data || []).map((p) => ({
-    id: p.user_id ?? "",
-    nome: p.nome || "Sem nome",
-  }));
+    const userIds = (rolesData || []).map((r) => r.user_id);
 
-  setTecnicos(tecnicosFormatados);
-};
+    if (userIds.length === 0) {
+      setTecnicos([]);
+      return;
+    }
+
+    const { data: profilesData, error: profilesError } = await supabase
+      .from("profiles")
+      .select("user_id, nome")
+      .in("user_id", userIds);
+
+    if (profilesError) {
+      toast.error("Erro ao buscar técnicos");
+      return;
+    }
+
+    const tecnicosFormatados = (profilesData || []).map((p) => ({
+      id: p.user_id ?? "",
+      nome: p.nome || "Sem nome",
+    }));
+
+    setTecnicos(tecnicosFormatados);
+  };
 
   const openNew = () => {
     setEditingId(null);
@@ -150,7 +167,7 @@ const Manutencao = () => {
   };
 
   const openEdit = (m: Manutencao) => {
-    setEditingId(m.id_serial);
+    setEditingId(m.id);
 
     let formattedDate = getLocalDateTime();
 
@@ -199,7 +216,7 @@ const Manutencao = () => {
       await supabase
         .from("manutencoes")
         .select("*")
-        .order("id_serial", {
+        .order("id", {
           ascending: false,
         });
 
@@ -241,7 +258,7 @@ const Manutencao = () => {
   }, []);
 
   const handleDelete = async (
-    idSerial: number,
+    id: string,
     computador: string
   ) => {
     if (
@@ -254,7 +271,7 @@ const Manutencao = () => {
     const { error } = await supabase
       .from("manutencoes")
       .delete()
-      .eq("id_serial", idSerial);
+      .eq("id", id);
 
     if (error) {
       toast.error(error.message);
@@ -268,75 +285,75 @@ const Manutencao = () => {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!form.computador) {
-    toast.error("❌ Selecione um computador");
-    return;
-  }
+    if (!form.computador) {
+      toast.error("❌ Selecione um computador");
+      return;
+    }
 
-  if (!form.tecnico) {
-    toast.error("❌ Selecione um técnico");
-    return;
-  }
+    if (!form.tecnico) {
+      toast.error("❌ Selecione um técnico");
+      return;
+    }
 
-  let submitError;
+    let submitError;
 
-  if (editingId) {
-    ({ error: submitError } = await supabase
-      .from("manutencoes")
-      .update({
-        computador: form.computador,
-        problema: form.problema,
-        tecnico: form.tecnico,
-        data: form.data,
-        status: form.status,
-        prioridade: form.prioridade,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id_serial", editingId));
-  } else {
-    ({ error: submitError } = await supabase
-      .from("manutencoes")
-      .insert({
-        computador: form.computador,
-        problema: form.problema,
-        tecnico: form.tecnico,
-        data: form.data,
-        status: form.status,
-        prioridade: form.prioridade,
-        created_at: new Date().toISOString(),
-      }));
-  }
+    if (editingId) {
+      ({ error: submitError } = await supabase
+        .from("manutencoes")
+        .update({
+          computador: form.computador,
+          problema: form.problema,
+          tecnico: form.tecnico,
+          data: form.data,
+          status: form.status,
+          prioridade: form.prioridade,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingId));
+    } else {
+      ({ error: submitError } = await supabase
+        .from("manutencoes")
+        .insert({
+          computador: form.computador,
+          problema: form.problema,
+          tecnico: form.tecnico,
+          data: form.data,
+          status: form.status,
+          prioridade: form.prioridade,
+          created_at: new Date().toISOString(),
+        }));
+    }
 
-  if (submitError) {
-    toast.error("❌ " + submitError.message);
-    return;
-  }
+    if (submitError) {
+      toast.error("❌ " + submitError.message);
+      return;
+    }
 
-  if (form.status === "Concluída" && form.computador) {
-    await supabase
-      .from("chamados")
-      .update({
-        status: "resolvido",
-        data_encerramento: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("equipamento_nome", form.computador)
-      .in("status", ["aberto", "em_andamento"]);
-  }
+    if (form.status === "Concluída" && form.computador) {
+      await supabase
+        .from("chamados")
+        .update({
+          status: "resolvido",
+          data_encerramento: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("equipamento_nome", form.computador)
+        .in("status", ["aberto", "em_andamento"]);
+    }
 
-  toast.success(
-    editingId
-      ? "✅ Manutenção atualizada com sucesso!"
-      : "✅ Manutenção criada com sucesso!"
-  );
+    toast.success(
+      editingId
+        ? "✅ Manutenção atualizada com sucesso!"
+        : "✅ Manutenção criada com sucesso!"
+    );
 
-  setForm(emptyForm);
-  setEditingId(null);
-  setOpen(false);
-  load();
-};
+    setForm(emptyForm);
+    setEditingId(null);
+    setOpen(false);
+    load();
+  };
 
   const formatarDataHora = (
     dataStr: string | null
@@ -732,7 +749,7 @@ const Manutencao = () => {
               ) : (
                 filtered.map((m) => (
                   <tr
-                    key={m.id_serial}
+                    key={m.id}
                     className="border-b border-border last:border-0 hover:bg-muted/50"
                   >
                     <td className="py-3 font-medium text-foreground">
@@ -781,7 +798,7 @@ const Manutencao = () => {
                           <button
                             onClick={() =>
                               handleDelete(
-                                m.id_serial,
+                                m.id,
                                 m.computador || ""
                               )
                             }
