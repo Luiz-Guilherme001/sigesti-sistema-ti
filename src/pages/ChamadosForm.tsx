@@ -73,23 +73,39 @@ const ChamadoForm = () => {
     const carregarDados = async () => {
       setLoadingDados(true);
 
-      const { data: perfisData, error } = await supabase
-  .from("profiles")
-  .select("user_id, nome")
-  .eq("role", "tecnico")
-  .not("nome", "is", null)
-  .order("nome");
+      const { data: rolesData, error: rolesError } = await supabase
+  .from("user_roles")
+  .select("user_id")
+  .eq("role", "tecnico");
 
-if (error) {
-  toast.error("Erro ao buscar técnicos: " + error.message);
+if (rolesError) {
+  toast.error("Erro ao buscar técnicos: " + rolesError.message);
   setTecnicos([]);
 } else {
-  setTecnicos(
-    (perfisData ?? []).map((p) => ({
-      id: p.user_id ?? "",
-      nome: p.nome ?? "",
-    }))
-  );
+  const userIds = (rolesData ?? []).map((r) => r.user_id);
+
+  if (userIds.length === 0) {
+    setTecnicos([]);
+  } else {
+    const { data: perfisData, error: profilesError } = await supabase
+      .from("profiles")
+      .select("user_id, nome")
+      .in("user_id", userIds)
+      .not("nome", "is", null)
+      .order("nome");
+
+    if (profilesError) {
+      toast.error("Erro ao buscar técnicos: " + profilesError.message);
+      setTecnicos([]);
+    } else {
+      setTecnicos(
+        (perfisData ?? []).map((p) => ({
+          id: p.user_id ?? "",
+          nome: p.nome ?? "",
+        }))
+      );
+    }
+  }
 }
 
       const { data: equipamentosData } = await supabase
