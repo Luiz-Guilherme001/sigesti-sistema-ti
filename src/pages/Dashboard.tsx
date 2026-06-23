@@ -48,7 +48,7 @@ const Dashboard = () => {
       if (isStaff) {
         const [{ count: comp }, { data: manut }, { data: pecas }] = await Promise.all([
           supabase.from("computadores").select("*", { count: "exact", head: true }),
-          supabase.from("manutencoes").select("*").order("data", { ascending: false }),
+          supabase.from("manutencoes").select("*").order("created_at", { ascending: false }),
           supabase.from("pecas").select("*"),
         ]);
 
@@ -244,7 +244,7 @@ const Dashboard = () => {
           <div className="space-y-3">
             {recentes.length === 0 && <p className="text-sm text-muted-foreground">Sem registros</p>}
             {recentes.map((m) => (
-              <div key={m.id_serial} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+              <div key={m.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                 <div>
                   <p className="text-sm font-medium text-foreground">{m.computador}</p>
                   <p className="text-xs text-muted-foreground">{m.problema}</p>
