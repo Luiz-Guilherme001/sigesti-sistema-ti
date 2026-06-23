@@ -716,7 +716,7 @@ const Manutencao = () => {
                 </th>
 
                 <th className="pb-3 font-medium">
-                  Data/Hora
+                  Data Encerramento
                 </th>
 
                 {isStaff && (
@@ -781,7 +781,9 @@ const Manutencao = () => {
                     </td>
 
                     <td className="py-3 text-muted-foreground">
-                      {formatarDataHora(m.data)}
+                      {m.status === "Concluída"
+                        ? formatarDataHora(m.updated_at)
+                        : "—"}
                     </td>
 
                     {isStaff && (
