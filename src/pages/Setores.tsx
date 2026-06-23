@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Plus, Building2, Trash2, Pencil, X } from "lucide-react";
+import { Search, Plus, Building2, Trash2, Pencil, X, Upload, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,12 @@ const Setores = () => {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ nome: "", descricao: "" });
+  
+  
+  const [imagemFile, setImagemFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
   const [imagemAmpliada, setImagemAmpliada] = useState<{ url: string; nome: string } | null>(null);
   const { isStaff } = useAuth();
 
@@ -38,23 +44,84 @@ const Setores = () => {
 
   useEffect(() => { load(); }, []);
 
+  
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // Limite de 2MB
+        toast.error("❌ A imagem deve ter no máximo 2MB.");
+        return;
+      }
+      setImagemFile(file);
+      setPreview(URL.createObjectURL(file));
+    } else {
+      setImagemFile(null);
+      setPreview(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome.trim()) { toast.error("Informe o nome do setor"); return; }
 
-    let error;
-    if (editingId) {
-      ({ error } = await supabase.from("setores").update({ nome: form.nome, descricao: form.descricao }).eq("id", editingId));
-    } else {
-      ({ error } = await supabase.from("setores").insert({ nome: form.nome, descricao: form.descricao }));
-    }
+    setUploading(true);
+    let imageUrl = preview; // Usa o preview temporariamente caso não envie nova imagem
 
-    if (error) { toast.error(error.message); return; }
-    toast.success(editingId ? "Setor atualizado" : "Setor criado");
-    setForm({ nome: "", descricao: "" });
-    setEditingId(null);
-    setOpen(false);
-    load();
+    try {
+      
+      if (imagemFile) {
+        // Gera um nome único para não dar conflito (ex: 1698765432_minhafoto.jpg)
+        const fileExt = imagemFile.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `setores/${fileName}`; // Salva dentro de uma pasta "setores" no bucket
+
+        const { error: uploadError } = await supabase.storage
+          .from('fotos-setores')
+          .upload(filePath, imagemFile);
+
+        if (uploadError) throw uploadError;
+
+        
+        const { data: urlData } = supabase.storage
+          .from('fotos-setores')
+          .getPublicUrl(filePath);
+
+        imageUrl = urlData.publicUrl;
+      }
+
+    
+      let error;
+      if (editingId) {
+        // Se estiver editando e NÃO trocou a foto, mantém a URL antiga
+        const updateData: { nome: string; descricao: string; imagem_url?: string | null } = { nome: form.nome, descricao: form.descricao };
+        if (imagemFile) {
+          updateData.imagem_url = imageUrl;
+        }
+        ({ error } = await supabase.from("setores").update(updateData).eq("id", editingId));
+      } else {
+        ({ error } = await supabase.from("setores").insert({ 
+          nome: form.nome, 
+          descricao: form.descricao,
+          imagem_url: imageUrl 
+        }));
+      }
+
+      if (error) throw error;
+
+      toast.success(editingId ? "Setor atualizado" : "Setor criado");
+      setForm({ nome: "", descricao: "" });
+      setImagemFile(null);
+      setPreview(null);
+      setEditingId(null);
+      setOpen(false);
+      load();
+     } catch (err: unknown) {
+  const message = err instanceof Error ? err.message : "Ocorreu um erro ao salvar";
+  toast.error("❌ Erro ao salvar: " + message);
+}
+      finally {
+      setUploading(false);
+    }
   };
 
   const handleDelete = async (id: string, nome: string) => {
@@ -67,12 +134,16 @@ const Setores = () => {
   const openEdit = (setor: Setor) => {
     setEditingId(setor.id);
     setForm({ nome: setor.nome, descricao: setor.descricao || "" });
+    setPreview(setor.imagem_url); // Mostra a foto atual no preview
+    setImagemFile(null); // Limpa o arquivo novo
     setOpen(true);
   };
 
   const openNew = () => {
     setEditingId(null);
     setForm({ nome: "", descricao: "" });
+    setImagemFile(null);
+    setPreview(null);
     setOpen(true);
   };
 
@@ -107,9 +178,28 @@ const Setores = () => {
                   <Label htmlFor="descricao">Descrição</Label>
                   <Input id="descricao" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} placeholder="Ex: 20 máquinas" />
                 </div>
+                
+                {/* ✅ NOVO CAMPO DE UPLOAD DE IMAGEM */}
+                <div>
+                  <Label>Foto do Setor</Label>
+                  <div className="mt-2 flex items-center gap-4">
+                    <label className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-dashed border-border rounded-md hover:bg-muted/50 transition-colors text-sm text-muted-foreground">
+                      <Upload className="h-4 w-4" />
+                      Escolher foto
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+                    </label>
+                    {preview && (
+                      <img src={preview} alt="Preview" className="w-16 h-16 object-cover rounded-md border border-border" />
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Formatos aceitos: JPG, PNG. Máximo: 2MB.</p>
+                </div>
+
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                  <Button type="submit">Salvar</Button>
+                  <Button type="submit" disabled={uploading}>
+                    {uploading ? "Enviando..." : "Salvar"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
