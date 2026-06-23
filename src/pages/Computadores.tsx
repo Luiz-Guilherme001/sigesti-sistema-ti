@@ -37,6 +37,7 @@ interface Computador {
   data_aquisicao: string | null;
   ultima_manutencao?: string | null;
   created_at?: string | null;
+  localizacao?: string | null;  // 👈 adiciona
 
   setores?: {
     id: string;
@@ -62,6 +63,7 @@ const emptyForm = {
   status: "Ativo",
   numero_serie: "",
   data_aquisicao: "",
+  localizacao: "",
 };
 
 const Computadores = () => {
@@ -145,6 +147,7 @@ const Computadores = () => {
       status: c.status || "Ativo",
       numero_serie: c.numero_serie || "",
       data_aquisicao: c.data_aquisicao || "",
+      localizacao: c.localizacao || "",
     });
 
     setOpen(true);
@@ -170,6 +173,7 @@ const Computadores = () => {
           status: form.status,
           numero_serie: form.numero_serie || null,
           data_aquisicao: form.data_aquisicao || null,
+          localizacao: form.localizacao || null,  
           updated_at: new Date().toISOString(),
         })
         .eq("id", editingId));
@@ -183,6 +187,7 @@ const Computadores = () => {
           status: form.status,
           numero_serie: form.numero_serie || null,
           data_aquisicao: form.data_aquisicao || null,
+          localizacao: form.localizacao || null,  
           created_at: new Date().toISOString(),
         }));
     }
