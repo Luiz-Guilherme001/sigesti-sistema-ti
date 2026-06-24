@@ -3,7 +3,6 @@
 Sistema web desenvolvido como **Projeto Integrador** para a EETEPA Vilhena Alves (Escola Estadual de Educação Profissional e Tecnológica da Amazônia). O SIGESTI centraliza o gerenciamento de equipamentos de informática, manutenções, chamados técnicos, estoque de peças e agendamento de laboratórios da instituição.
 
 > 🔗 **Demo:** [sigesti-sistema-ti.vercel.app](https://sigesti-sistema-ti.vercel.app)  
-> 🏫 **Sistema oficial da escola:** [sigesti-eetepa.vercel.app](https://sigesti-eetepa.vercel.app)
 
 ---
 
