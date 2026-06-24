@@ -15,7 +15,9 @@ O sistema possui três perfis de acesso com permissões diferentes. Use as crede
 | **Técnico** | tecnico@demo.com | Demo@123456 |
 | **Usuário** | usuario@demo.com | Demo@123456 |
 
-> O perfil **Administrador** é demonstrado no vídeo abaixo.
+Vídeo Demonstrativo
+
+<video src="https://github.com/user-attachments/assets/f7d4f097-8b9e-41a3-ad69-4a6397e9b7e7" controls width="100%"></video>
 
 ---
 
