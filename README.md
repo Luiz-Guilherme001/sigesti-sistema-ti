@@ -1,36 +1,53 @@
-# SIGESTI — Sistema de Gerenciamento de TI
+# SIGESTI — Sistema Integrado de Gestão de TI
 
-Sistema web desenvolvido para a **EETEPA (Escola Estadual de Educação Profissional e Tecnológica da Amazônia)** como projeto integrador. O SIGESTI centraliza o gerenciamento de equipamentos de informática, manutenções, chamados técnicos, estoque de peças e agendamento de laboratórios da instituição.
+Sistema web desenvolvido como **Projeto Integrador** para a EETEPA Vilhena Alves (Escola Estadual de Educação Profissional e Tecnológica da Amazônia). O SIGESTI centraliza o gerenciamento de equipamentos de informática, manutenções, chamados técnicos, estoque de peças e agendamento de laboratórios da instituição.
 
-🔗 **Acesso:** [sigesti-eetepa.vercel.app](https://sigesti-eetepa.vercel.app)
+> 🔗 **Demo:** [sigesti-sistema-ti.vercel.app](https://sigesti-sistema-ti.vercel.app)  
+
+---
+
+## Sobre o projeto
+
+Este repositório é o fork pessoal do sistema, mantido para fins de portfólio. O desenvolvimento foi conduzido de forma **independente e integral** — do levantamento de requisitos ao deploy em produção — por Luiz Guilherme P. Pinto, estudante do Curso Técnico em Informática da EETEPA e de Ciência da Computação na UNINTER.
+
+### Metodologia de desenvolvimento com IA
+
+O projeto utilizou 4 ferramentas de inteligência artificial com funções específicas, com **revisão e validação manual de todo o código gerado**:
+
+| Ferramenta | Função |
+|---|---|
+| **Lovable** | Prototipagem rápida de interfaces e estrutura inicial do banco |
+| **Claude** | Arquitetura, lógica complexa e resolução de problemas estruturais |
+| **ChatGPT** | Sintaxe, correções de bugs do dia a dia e consultas rápidas |
+| **DeepSeek** | Otimização de consultas SQL e comparação de abordagens |
 
 ---
 
 ## Funcionalidades
 
-- **Dashboard** — Painel com indicadores em tempo real: total de computadores, manutenções pendentes, peças em falta e gráficos de atividade
-- **Computadores** — Inventário completo de equipamentos com patrimônio, localização e status
-- **Manutenções** — Registro e acompanhamento de ordens de serviço com prioridade e histórico
+- **Dashboard** — Indicadores em tempo real: computadores, manutenções pendentes, peças em falta e gráficos de atividade
+- **Computadores** — Inventário completo com patrimônio, localização, status e histórico de manutenções
+- **Manutenções** — Ordens de serviço com prioridade, técnico responsável e controle de status
 - **Chamados** — Abertura e acompanhamento de chamados técnicos pelos usuários
-- **Peças** — Controle de estoque com alertas de nível mínimo
-- **Agendamento de Salas** — Reserva de laboratórios de informática
-- **Setores** — Cadastro e gerenciamento de setores da escola
-- **Relatórios** — Exportação de dados em PDF e Excel
-- **Configurações** — Preferências do sistema, tema claro/escuro, notificações
+- **Peças** — Controle de estoque com alertas automáticos de nível mínimo
+- **Agendamento** — Reserva de laboratórios, auditório e sala de multimídia com detecção de conflito de horário
+- **Setores** — Cadastro de espaços da escola com ícone e foto ilustrativa
+- **Relatórios** — Exportação em PDF e Excel
+- **Configurações** — Painel admin com gerenciamento de usuários, papéis, setores, estatísticas e logs de auditoria
 
 ---
 
 ## Perfis de Acesso
 
 | Perfil | Permissões |
-|--------|-----------|
-| **Admin** | Acesso total — gerencia usuários, papéis, configurações e logs |
+|---|---|
+| **Admin** | Acesso total — gerencia usuários, papéis, configurações e logs de auditoria |
 | **Técnico** | Cria e edita computadores, peças, manutenções e chamados |
 | **Usuário** | Abre chamados e visualiza informações do sistema |
 
 ---
 
-## Tecnologias Utilizadas
+## Stack Tecnológica
 
 **Frontend**
 - React 18 + TypeScript 5
@@ -40,29 +57,34 @@ Sistema web desenvolvido para a **EETEPA (Escola Estadual de Educação Profissi
 - Tailwind CSS + shadcn/ui + Radix UI
 - React Hook Form + Zod
 - Recharts
-- jsPDF + xlsx
+- jsPDF + xlsx (exportação de relatórios)
 
 **Backend**
 - Supabase (PostgreSQL)
 - Row Level Security (RLS) em todas as tabelas
-- Edge Functions (criação e exclusão de usuários)
-- Autenticação com controle de papéis
+- Edge Functions — criação e exclusão segura de usuários
+- Triggers automáticos — `handle_new_user`, `prevent_last_admin_removal`, `log_role_change`
+- Autenticação com controle de papéis hierárquicos
 
 **Infraestrutura**
-- Vercel (deploy automático via GitHub)
+- Vercel — deploy automático a cada `git push`
+- GitHub — versionamento e pipeline CI/CD
 
 ---
 
 ## Estrutura do Banco de Dados
 
 | Tabela | Descrição |
-|--------|-----------|
-| `profiles` | Dados dos usuários |
-| `user_roles` | Papéis de cada usuário |
+|---|---|
+| `profiles` | Dados dos usuários (nome, email, setor) |
+| `user_roles` | Papéis de cada usuário (admin, tecnico, usuario) |
 | `computadores` | Inventário de equipamentos |
-| `pecas` | Estoque de peças |
+| `pecas` | Estoque de peças com controle de mínimo |
 | `manutencoes` | Ordens de serviço |
-| `chamados` | Chamados técnicos |
+| `chamados` | Chamados técnicos abertos pelos usuários |
+| `setores` | Espaços físicos da escola |
+| `laboratorios` | Espaços disponíveis para agendamento |
+| `reserva_salas` | Reservas de laboratórios e espaços |
 | `role_change_logs` | Auditoria de alterações de papéis |
 | `admin_preferences` | Preferências do painel admin |
 
@@ -74,8 +96,8 @@ Sistema web desenvolvido para a **EETEPA (Escola Estadual de Educação Profissi
 
 ```bash
 # Clone o repositório
-git clone https://github.com/eetepasigesti01/gerenciadorcomputadores.git
-cd gerenciadorcomputadores
+git clone https://github.com/Luiz-Guilherme001/sigesti-sistema-ti.git
+cd sigesti-sistema-ti
 
 # Instale as dependências
 npm install
@@ -95,12 +117,16 @@ Acesse em `http://localhost:5173`
 
 ## Deploy
 
-O projeto está configurado com deploy automático na Vercel. Basta fazer `git push` para a branch `main` que a Vercel publica a nova versão automaticamente.
+O projeto usa deploy contínuo via Vercel. A cada `git push` para a branch `main`, a Vercel publica automaticamente a nova versão em produção.
 
 ---
 
 ## Desenvolvido por
 
-Projeto Integrador — EETEPA  
-Curso Técnico em Informática  
-2026
+**Luiz Guilherme P. Pinto**  
+Estudante de Ciência da Computação — UNINTER  
+Curso Técnico em Informática — EETEPA Vilhena Alves  
+2025–2026
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Luiz%20Guilherme-0077B5?style=flat&logo=linkedin)](https://www.linkedin.com/in/luiz-guilherme-penedo-pinto)
+[![GitHub](https://img.shields.io/badge/GitHub-Luiz--Guilherme001-181717?style=flat&logo=github)](https://github.com/Luiz-Guilherme001)
