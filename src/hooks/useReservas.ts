@@ -12,6 +12,8 @@ export interface Reserva {
   horario_inicio:  string;
   horario_fim:     string;
   created_at:      string;
+  status:          'pendente' | 'aprovado' | 'rejeitado';
+  observacao?:     string | null;
 }
 
 export interface Laboratorio {
@@ -19,13 +21,25 @@ export interface Laboratorio {
   nome_laboratorio: string;
 }
 
+const SETORES_COORDENACAO = [
+  'b751d128-94c9-4e2d-a363-0756f763df39',
+  'd6229edd-ecc4-41d5-af58-b96fc7249a77',
+  '35b19e15-37cb-4d14-bab1-5bf4d3b70f6d',
+  '665f781c-6537-416b-a475-956740ded1b4',
+  '01373263-5d93-474d-9160-5f2ecb1192b2',
+];
+
 export const useReservas = (authUid: string, userEmail: string) => {
-  const [minhasReservas, setMinhasReservas] = useState<Reserva[]>([]);
-  const [laboratorios, setLaboratorios]     = useState<Laboratorio[]>([]);
-  const [reservasDoDia, setReservasDoDia]   = useState<Reserva[]>([]);
-  const [isLoading, setIsLoading]           = useState(true);
-  const [userNome, setUserNome]             = useState<string>('');
-  const [userSetor, setUserSetor]           = useState<string | null>(null);
+  const [minhasReservas, setMinhasReservas]         = useState<Reserva[]>([]);
+  const [laboratorios, setLaboratorios]             = useState<Laboratorio[]>([]);
+  const [reservasDoDia, setReservasDoDia]           = useState<Reserva[]>([]);
+  const [reservasPendentes, setReservasPendentes]   = useState<Reserva[]>([]);
+  const [isLoading, setIsLoading]                   = useState(true);
+  const [userNome, setUserNome]                     = useState<string>('');
+  const [userSetor, setUserSetor]                   = useState<string | null>(null);
+  const [userSetorId, setUserSetorId]               = useState<string | null>(null);
+  const [isAdmin, setIsAdmin]                       = useState(false);
+  const [isCoordenador, setIsCoordenador]           = useState(false);
 
   useEffect(() => {
     if (!authUid) return;
@@ -34,20 +48,36 @@ export const useReservas = (authUid: string, userEmail: string) => {
       try {
         const hoje = new Date().toISOString().split('T')[0];
 
-        // Busca nome e setor do usuário logado via profiles + setores
+        // Busca nome, setor e papel do usuário logado
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('nome, setores(nome)')
+          .select('nome, setor_id, setores(nome)')
           .eq('user_id', authUid)
           .maybeSingle();
 
         if (profileError) throw profileError;
 
-        const nome  = profileData?.nome ?? userEmail;
-        const setor = (profileData?.setores as any)?.nome ?? null;
+        const nome    = profileData?.nome ?? userEmail;
+        const setor   = (profileData?.setores as any)?.nome ?? null;
+        const setorId = profileData?.setor_id ?? null;
 
         setUserNome(nome);
         setUserSetor(setor);
+        setUserSetorId(setorId);
+
+        // Verifica se é admin
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', authUid)
+          .eq('role', 'admin')
+          .maybeSingle();
+
+        const admin = !!roleData;
+        const coord = setorId ? SETORES_COORDENACAO.includes(setorId) : false;
+
+        setIsAdmin(admin);
+        setIsCoordenador(coord);
 
         const [labRes, reservaRes] = await Promise.all([
           supabase.from('laboratorios').select('id, nome_laboratorio'),
@@ -63,7 +93,20 @@ export const useReservas = (authUid: string, userEmail: string) => {
         if (reservaRes.error) throw reservaRes.error;
 
         setLaboratorios(labRes.data || []);
-        setMinhasReservas(reservaRes.data || []);
+        setMinhasReservas((reservaRes.data || []) as Reserva[]);
+
+        // Se for admin ou coordenador, carrega pendentes
+        if (admin || coord) {
+          const { data: pendentes, error: pendError } = await supabase
+            .from('reserva_salas')
+            .select('*')
+            .eq('status', 'pendente')
+            .gte('data_reserva', hoje)
+            .order('data_reserva', { ascending: true });
+
+          if (pendError) throw pendError;
+          setReservasPendentes((pendentes || []) as Reserva[]);
+        }
       } catch (err: any) {
         console.error('Erro ao carregar dados:', err.message);
         toast.error('Erro ao carregar os dados de agendamentos.');
@@ -101,24 +144,21 @@ export const useReservas = (authUid: string, userEmail: string) => {
       const hoje = new Date().toISOString().split('T')[0];
 
       if (dataReserva < hoje) {
-        toast.error('Não é possível reservar para uma data passada.');
+        toast.error('Não é possível solicitar para uma data passada.');
         return false;
       }
 
-      const { data: temConflito, error: conflictError } = await supabase.rpc(
-        'verificar_conflito_reserva',
-        {
-          p_laboratorio_id: laboratorioId,
-          p_data:           dataReserva,
-          p_inicio:         horarioInicio,
-          p_fim:            horarioFim,
-        }
-      );
+      // Verifica conflito apenas com reservas APROVADAS
+      const { data: conflito } = await supabase
+        .from('reserva_salas')
+        .select('id')
+        .eq('laboratorio_id', laboratorioId)
+        .eq('data_reserva', dataReserva)
+        .eq('status', 'aprovado')
+        .or(`horario_inicio.lt.${horarioFim},horario_fim.gt.${horarioInicio}`);
 
-      if (conflictError) throw conflictError;
-
-      if (temConflito) {
-        toast.error('Esta sala já está ocupada neste horário!');
+      if (conflito && conflito.length > 0) {
+        toast.error('Este horário já está ocupado por uma reserva aprovada!');
         return false;
       }
 
@@ -132,11 +172,12 @@ export const useReservas = (authUid: string, userEmail: string) => {
           data_reserva:    dataReserva,
           horario_inicio:  horarioInicio,
           horario_fim:     horarioFim,
+          status:          'pendente',
         }]);
 
       if (insertError) throw insertError;
 
-      toast.success('Sala reservada com sucesso!');
+      toast.success('Solicitação enviada! Aguarde aprovação da coordenação.');
 
       const { data: atualizadas } = await supabase
         .from('reserva_salas')
@@ -145,11 +186,49 @@ export const useReservas = (authUid: string, userEmail: string) => {
         .gte('data_reserva', hoje)
         .order('data_reserva', { ascending: true });
 
-      setMinhasReservas(atualizadas || []);
+      setMinhasReservas((atualizadas || []) as Reserva[]);
       return true;
     } catch (err: any) {
       console.error('Erro ao criar reserva:', err.message);
-      toast.error('Erro ao criar a reserva.');
+      toast.error('Erro ao enviar solicitação.');
+      return false;
+    }
+  };
+
+  const aprovarReserva = async (reservaId: string, observacao?: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('reserva_salas')
+        .update({ status: 'aprovado', observacao: observacao ?? null })
+        .eq('id', reservaId);
+
+      if (error) throw error;
+
+      toast.success('Reserva aprovada com sucesso!');
+      setReservasPendentes(prev => prev.filter(r => r.id !== reservaId));
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao aprovar reserva:', err.message);
+      toast.error('Erro ao aprovar a reserva.');
+      return false;
+    }
+  };
+
+  const rejeitarReserva = async (reservaId: string, observacao?: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('reserva_salas')
+        .update({ status: 'rejeitado', observacao: observacao ?? null })
+        .eq('id', reservaId);
+
+      if (error) throw error;
+
+      toast.success('Reserva rejeitada.');
+      setReservasPendentes(prev => prev.filter(r => r.id !== reservaId));
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao rejeitar reserva:', err.message);
+      toast.error('Erro ao rejeitar a reserva.');
       return false;
     }
   };
@@ -163,11 +242,11 @@ export const useReservas = (authUid: string, userEmail: string) => {
 
       if (error) throw error;
 
-      toast.success('Reserva cancelada.');
-      setMinhasReservas((prev) => prev.filter((r) => r.id !== reservaId));
+      toast.success('Solicitação cancelada.');
+      setMinhasReservas(prev => prev.filter(r => r.id !== reservaId));
     } catch (err: any) {
       console.error('Erro ao cancelar reserva:', err.message);
-      toast.error('Erro ao cancelar a reserva.');
+      toast.error('Erro ao cancelar a solicitação.');
     }
   };
 
@@ -175,11 +254,16 @@ export const useReservas = (authUid: string, userEmail: string) => {
     laboratorios,
     minhasReservas,
     reservasDoDia,
+    reservasPendentes,
     isLoading,
+    isAdmin,
+    isCoordenador,
     userNome,
     userSetor,
     carregarReservasDoDia,
     criarReserva,
+    aprovarReserva,
+    rejeitarReserva,
     cancelarReserva,
   };
 };
