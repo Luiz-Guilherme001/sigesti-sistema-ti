@@ -3,6 +3,10 @@ import { useReservas } from '@/hooks/useReservas';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { Trash2, Calendar, Layout, Trash, Sunrise, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -49,26 +53,68 @@ const TURNOS = [
 
 const normalizar = (h: string) => h.substring(0, 5);
 
-// NOVO: Combobox dropdown + digitação
-const Combobox = ({ id, label, placeholder, value, onChange, options }: {
-  id: string; label: string; placeholder: string; value: string; onChange: (v: string) => void; options: string[];
-}) => (
-  <div className="space-y-1">
-    <label className="text-xs font-medium text-muted-foreground">{label}</label>
-    <input
-      list={`${id}-list`}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full border border-border rounded-xl px-4 py-2.5 text-sm bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
-    />
-    <datalist id={`${id}-list`}>
-      {options.map((opt) => (<option key={opt} value={opt} />))}
-    </datalist>
-  </div>
-);
+// NOVO: Combobox com Select do shadcn/ui + opção de digitar
+const ComboboxField = ({ label, options, value, onChange }: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) => {
+  const [modoManual, setModoManual] = useState(false);
 
-// NOVO: StatusBadge
+  // Se o valor atual não está na lista, mostrar modo manual
+  useEffect(() => {
+    if (value && options.length > 0 && !options.includes(value)) {
+      setModoManual(true);
+    }
+  }, [value, options]);
+
+  const handleSelect = (val: string) => {
+    if (val === '__manual__') {
+      setModoManual(true);
+      onChange('');
+    } else {
+      setModoManual(false);
+      onChange(val);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {!modoManual ? (
+        <Select value={value || undefined} onValueChange={handleSelect}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={`Selecione ${label.toLowerCase()}...`} />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((opt) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+            <SelectItem value="__manual__">✏️ Digitar manualmente</SelectItem>
+          </SelectContent>
+        </Select>
+      ) : (
+        <div className="space-y-1">
+          <Input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={`Digite ${label.toLowerCase()}...`}
+            className="text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => { setModoManual(false); onChange(''); }}
+            className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+          >
+            ← Voltar para seleção
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StatusBadge = ({ status }: { status: string }) => {
   if (status === 'aprovado') return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500">
@@ -91,7 +137,6 @@ export const AgendamentoSalas: React.FC = () => {
   const { user } = useAuth();
   const userEmail = user?.email ?? '';
 
-  // ALTERADO: desestruturar novos valores do hook
   const {
     laboratorios,
     minhasReservas,
@@ -116,7 +161,6 @@ export const AgendamentoSalas: React.FC = () => {
     new Date().toISOString().split('T')[0]
   );
 
-  // NOVO: estados do modal e formulário
   const [modalOpen, setModalOpen] = useState(false);
   const [slotSelecionado, setSlotSelecionado] = useState<{ inicio: string; fim: string } | null>(null);
   const [formProfessor, setFormProfessor] = useState('');
@@ -139,7 +183,6 @@ export const AgendamentoSalas: React.FC = () => {
     }
   };
 
-  // ALTERADO: slotInfo substitui slotOcupado + quemReservou
   const slotInfo = (inicio: string, fim: string) => {
     const reserva = reservasDoDia.find(
       (r) =>
@@ -156,7 +199,6 @@ export const AgendamentoSalas: React.FC = () => {
     };
   };
 
-  // NOVO: handlers de aprovação
   const handleAprovar = async (reservaId: string) => {
     await aprovarReserva(reservaId);
     if (labSelecionado) await carregarReservasDoDia(labSelecionado, dataSelecionada);
@@ -167,7 +209,6 @@ export const AgendamentoSalas: React.FC = () => {
     if (labSelecionado) await carregarReservasDoDia(labSelecionado, dataSelecionada);
   };
 
-  // NOVO: handler do modal
   const handleConfirmarAgendamento = async () => {
     if (!formProfessor.trim()) {
       toast.error('Informe o nome do professor.');
@@ -182,6 +223,7 @@ export const AgendamentoSalas: React.FC = () => {
     );
     if (sucesso) {
       setModalOpen(false);
+      setFormProfessor('');
       setFormDisciplina('');
       setFormTurma('');
       await carregarReservasDoDia(labSelecionado, dataSelecionada);
@@ -208,7 +250,7 @@ export const AgendamentoSalas: React.FC = () => {
         </p>
       </div>
 
-      {/* NOVO: Painel de Aprovação */}
+      {/* Painel de Aprovação */}
       {podeAprovar && reservasPendentes.length > 0 && (
         <Card className="rounded-2xl shadow-md border border-amber-500/30 bg-amber-500/5">
           <CardHeader className="flex flex-row items-center gap-2 p-5 pb-3">
@@ -254,7 +296,7 @@ export const AgendamentoSalas: React.FC = () => {
         </Card>
       )}
 
-      {/* 1. Filtros — IGUAL */}
+      {/* Filtros */}
       <Card className="rounded-2xl shadow-md border border-border bg-card">
         <CardHeader className="flex flex-row items-center gap-2 p-5 pb-3">
           <Calendar className="w-5 h-5 text-primary" />
@@ -275,7 +317,6 @@ export const AgendamentoSalas: React.FC = () => {
               className="w-full border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-muted/30 hover:bg-muted/50 transition-all cursor-pointer"
             />
           </div>
-
           <div className="md:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
               Selecione o local
@@ -299,7 +340,7 @@ export const AgendamentoSalas: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* 2. Grade de Horários — ALTERADO */}
+      {/* Grade de Horários */}
       {labSelecionado ? (
         <div className="space-y-4">
           {TURNOS.map((turno) => {
@@ -371,7 +412,7 @@ export const AgendamentoSalas: React.FC = () => {
                           )}
 
                           {ocupado && info && (
-                            <div className="mt-1 space-y-0.5">
+                           3<                            <div className="mt-1 space-y-0.5">
                               <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500">
                                 ✅ Confirmado
                               </span>
@@ -398,7 +439,7 @@ export const AgendamentoSalas: React.FC = () => {
         </div>
       )}
 
-      {/* 3. Minhas Reservas — ALTERADO: StatusBadge + disciplina/turma + cancelar só pendente */}
+      {/* Minhas Solicitações */}
       <Card className="rounded-2xl shadow-md border border-border bg-card">
         <CardHeader className="flex flex-row items-center gap-2 p-5 pb-3">
           <Trash className="w-5 h-5 text-primary" />
@@ -427,9 +468,7 @@ export const AgendamentoSalas: React.FC = () => {
                       <div className="text-[10px] text-muted-foreground flex items-center gap-1">
                         <span>{reserva.data_reserva}</span>
                         <span>·</span>
-                        <span>
-                          {normalizar(reserva.horario_inicio)} – {normalizar(reserva.horario_fim)}
-                        </span>
+                        <span>{normalizar(reserva.horario_inicio)} – {normalizar(reserva.horario_fim)}</span>
                       </div>
                       {reserva.disciplina && (
                         <div className="text-[10px] text-muted-foreground">Disciplina: {reserva.disciplina}</div>
@@ -461,7 +500,7 @@ export const AgendamentoSalas: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* NOVO: Modal de Agendamento */}
+      {/* Modal de Agendamento */}
       {modalOpen && slotSelecionado && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -476,31 +515,25 @@ export const AgendamentoSalas: React.FC = () => {
               {laboratorios.find((l) => l.id === labSelecionado)?.nome_laboratorio} — {slotSelecionado.inicio} às {slotSelecionado.fim}
             </p>
 
-            <Combobox
-              id="professor"
+            <ComboboxField
               label="Nome do Professor"
-              placeholder="Selecione ou digite o nome"
+              options={sugestoesProfessores}
               value={formProfessor}
               onChange={setFormProfessor}
-              options={sugestoesProfessores}
             />
 
-            <Combobox
-              id="disciplina"
+            <ComboboxField
               label="Disciplina"
-              placeholder="Selecione ou digite a disciplina"
+              options={sugestoesDisciplinas}
               value={formDisciplina}
               onChange={setFormDisciplina}
-              options={sugestoesDisciplinas}
             />
 
-            <Combobox
-              id="turma"
+            <ComboboxField
               label="Turma"
-              placeholder="Selecione ou digite a turma"
+              options={sugestoesTurmas}
               value={formTurma}
               onChange={setFormTurma}
-              options={sugestoesTurmas}
             />
 
             <div className="flex gap-2">
