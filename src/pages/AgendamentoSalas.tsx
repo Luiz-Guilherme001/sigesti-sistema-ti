@@ -340,7 +340,7 @@ export const AgendamentoSalas: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Grade de Horários */}
+            {/* Grade de Horários */}
       {labSelecionado ? (
         <div className="space-y-4">
           {TURNOS.map((turno) => {
@@ -354,7 +354,7 @@ export const AgendamentoSalas: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-5">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {turno.slots.map((slot) => {
                       const info = slotInfo(slot.inicio, slot.fim);
                       const ocupado = info?.status === 'aprovado';
@@ -364,7 +364,7 @@ export const AgendamentoSalas: React.FC = () => {
                       return (
                         <div
                           key={slot.inicio}
-                          className={`rounded-xl border p-3 text-center transition-all duration-200 ${
+                          className={`rounded-xl border p-4 transition-all duration-200 ${
                             ocupado
                               ? 'bg-destructive/5 border-destructive/20'
                               : pendente
@@ -372,9 +372,40 @@ export const AgendamentoSalas: React.FC = () => {
                               : 'bg-muted/30 border-border hover:bg-primary/10 cursor-pointer'
                           }`}
                         >
-                          <div className="text-xs font-bold">{slot.inicio}</div>
-                          <div className="text-[10px] text-muted-foreground">{slot.fim}</div>
+                          {/* Horário */}
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-bold">{slot.inicio} - {slot.fim}</span>
+                            {livre && (
+                              <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full">
+                                Livre
+                              </span>
+                            )}
+                            {ocupado && (
+                              <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full">
+                                ✅ Confirmado
+                              </span>
+                            )}
+                            {pendente && (
+                              <span className="text-[10px] font-bold bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full">
+                                ⏳ Pendente
+                              </span>
+                            )}
+                          </div>
 
+                          {/* Info da reserva */}
+                          {info && (
+                            <div className="space-y-1">
+                              <div className="text-xs font-medium truncate">{info.professor}</div>
+                              {info.disciplina && (
+                                <div className="text-[11px] text-muted-foreground truncate">{info.disciplina}</div>
+                              )}
+                              {info.turma && (
+                                <div className="text-[11px] text-muted-foreground truncate">{info.turma}</div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Botões */}
                           {livre && (
                             <button
                               onClick={() => {
@@ -384,41 +415,26 @@ export const AgendamentoSalas: React.FC = () => {
                                 setFormTurma('');
                                 setModalOpen(true);
                               }}
-                              className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all"
+                              className="mt-2 w-full text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 rounded-lg px-3 py-1.5 transition-all"
                             >
                               + Reservar
                             </button>
                           )}
 
-                          {pendente && info && (
-                            <div className="mt-1 space-y-0.5">
-                              <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600">
-                                ⏳ Pendente
-                              </span>
-                              <div className="text-[9px] truncate">{info.professor}</div>
-                              {info.disciplina && <div className="text-[9px] truncate">{info.disciplina}</div>}
-                              {info.turma && <div className="text-[9px] truncate">{info.turma}</div>}
-                              {podeAprovar && (
-                                <div className="flex gap-1 mt-1">
-                                  <button onClick={() => handleAprovar(info.id)} className="flex-1 text-[8px] bg-emerald-500 text-white rounded px-1 py-0.5 font-bold hover:bg-emerald-600">
-                                    Aprovar
-                                  </button>
-                                  <button onClick={() => handleRejeitar(info.id)} className="flex-1 text-[8px] bg-destructive text-white rounded px-1 py-0.5 font-bold hover:bg-destructive/80">
-                                    Rejeitar
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {ocupado && info && (
-                           3<                            <div className="mt-1 space-y-0.5">
-                              <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500">
-                                ✅ Confirmado
-                              </span>
-                              <div className="text-[9px] truncate">{info.professor}</div>
-                              {info.disciplina && <div className="text-[9px] truncate">{info.disciplina}</div>}
-                              {info.turma && <div className="text-[9px] truncate">{info.turma}</div>}
+                          {pendente && podeAprovar && (
+                            <div className="flex gap-2 mt-2">
+                              <button
+                                onClick={() => handleAprovar(info!.id)}
+                                className="flex-1 text-xs font-semibold bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg px-3 py-1.5 transition-all"
+                              >
+                                Aprovar
+                              </button>
+                              <button
+                                onClick={() => handleRejeitar(info!.id)}
+                                className="flex-1 text-xs font-semibold bg-destructive text-white hover:bg-destructive/80 rounded-lg px-3 py-1.5 transition-all"
+                              >
+                                Rejeitar
+                              </button>
                             </div>
                           )}
                         </div>
