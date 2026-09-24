@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+const normalizar = (h: string) => h.substring(0, 5);
+
 // ALTERADO: adicionado status, disciplina, turma, observacao
 export interface Reserva {
   id:              string;
@@ -174,18 +176,23 @@ export const useReservas = (authUid: string, userEmail: string) => {
       }
 
       // ALTERADO: conflito só com reservas aprovadas
-      const { data: conflito } = await supabase
+      const { data: reservasAprovadas } = await supabase
         .from('reserva_salas')
-        .select('id')
+        .select('horario_inicio, horario_fim')
         .eq('laboratorio_id', laboratorioId)
         .eq('data_reserva', dataReserva)
-        .eq('status', 'aprovado')
-        .or(`horario_inicio.lt.${horarioFim},horario_fim.gt.${horarioInicio}`);
+        .eq('status', 'aprovado');
 
-      if (conflito && conflito.length > 0) {
+      const conflito = (reservasAprovadas || []).some((r) =>
+        normalizar(r.horario_inicio) < horarioFim &&
+        normalizar(r.horario_fim) > horarioInicio
+      );
+
+      if (conflito) {
         toast.error('Este horário já está ocupado por uma reserva aprovada!');
         return false;
       }
+      
 
       const { error: insertError } = await supabase
         .from('reserva_salas')
