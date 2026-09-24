@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+// ALTERADO: adicionado status, disciplina, turma, observacao
 export interface Reserva {
   id:              string;
   professor_nome:  string;
@@ -11,9 +12,11 @@ export interface Reserva {
   data_reserva:    string;
   horario_inicio:  string;
   horario_fim:     string;
-  created_at:      string;
   status:          'pendente' | 'aprovado' | 'rejeitado';
+  disciplina:      string | null;
+  turma:           string | null;
   observacao?:     string | null;
+  created_at:      string;
 }
 
 export interface Laboratorio {
@@ -33,13 +36,17 @@ export const useReservas = (authUid: string, userEmail: string) => {
   const [minhasReservas, setMinhasReservas]         = useState<Reserva[]>([]);
   const [laboratorios, setLaboratorios]             = useState<Laboratorio[]>([]);
   const [reservasDoDia, setReservasDoDia]           = useState<Reserva[]>([]);
-  const [reservasPendentes, setReservasPendentes]   = useState<Reserva[]>([]);
   const [isLoading, setIsLoading]                   = useState(true);
   const [userNome, setUserNome]                     = useState<string>('');
   const [userSetor, setUserSetor]                   = useState<string | null>(null);
-  const [userSetorId, setUserSetorId]               = useState<string | null>(null);
+
+  // NOVO: estados para aprovação e sugestões
+  const [reservasPendentes, setReservasPendentes]   = useState<Reserva[]>([]);
   const [isAdmin, setIsAdmin]                       = useState(false);
   const [isCoordenador, setIsCoordenador]           = useState(false);
+  const [sugestoesProfessores, setSugestoesProfessores] = useState<string[]>([]);
+  const [sugestoesDisciplinas, setSugestoesDisciplinas] = useState<string[]>([]);
+  const [sugestoesTurmas, setSugestoesTurmas]       = useState<string[]>([]);
 
   useEffect(() => {
     if (!authUid) return;
@@ -48,7 +55,6 @@ export const useReservas = (authUid: string, userEmail: string) => {
       try {
         const hoje = new Date().toISOString().split('T')[0];
 
-        // Busca nome, setor e papel do usuário logado
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('nome, setor_id, setores(nome)')
@@ -63,9 +69,8 @@ export const useReservas = (authUid: string, userEmail: string) => {
 
         setUserNome(nome);
         setUserSetor(setor);
-        setUserSetorId(setorId);
 
-        // Verifica se é admin
+        // NOVO: verificar se é admin
         const { data: roleData } = await supabase
           .from('user_roles')
           .select('role')
@@ -75,11 +80,11 @@ export const useReservas = (authUid: string, userEmail: string) => {
 
         const admin = !!roleData;
         const coord = setorId ? SETORES_COORDENACAO.includes(setorId) : false;
-
         setIsAdmin(admin);
         setIsCoordenador(coord);
 
-        const [labRes, reservaRes] = await Promise.all([
+        // ALTERADO: buscar sugestões junto com labs e reservas
+        const [labRes, reservaRes, profsRes, discsRes, turmasRes] = await Promise.all([
           supabase.from('laboratorios').select('id, nome_laboratorio'),
           supabase
             .from('reserva_salas')
@@ -87,6 +92,17 @@ export const useReservas = (authUid: string, userEmail: string) => {
             .eq('professor_email', userEmail)
             .gte('data_reserva', hoje)
             .order('data_reserva', { ascending: true }),
+          supabase.from('profiles').select('nome').order('nome'),
+          supabase
+            .from('reserva_salas')
+            .select('disciplina')
+            .not('disciplina', 'is', null)
+            .order('disciplina'),
+          supabase
+            .from('reserva_salas')
+            .select('turma')
+            .not('turma', 'is', null)
+            .order('turma'),
         ]);
 
         if (labRes.error)     throw labRes.error;
@@ -95,7 +111,12 @@ export const useReservas = (authUid: string, userEmail: string) => {
         setLaboratorios(labRes.data || []);
         setMinhasReservas((reservaRes.data || []) as Reserva[]);
 
-        // Se for admin ou coordenador, carrega pendentes
+        // NOVO: preencher sugestões
+        if (profsRes.data) setSugestoesProfessores(profsRes.data.map(p => p.nome));
+        if (discsRes.data) setSugestoesDisciplinas([...new Set(discsRes.data.map(d => d.disciplina))] as string[]);
+        if (turmasRes.data) setSugestoesTurmas([...new Set(turmasRes.data.map(t => t.turma))] as string[]);
+
+        // NOVO: carregar pendentes se admin ou coordenador
         if (admin || coord) {
           const { data: pendentes, error: pendError } = await supabase
             .from('reserva_salas')
@@ -134,21 +155,25 @@ export const useReservas = (authUid: string, userEmail: string) => {
     }
   };
 
+  // ALTERADO: adicionado professorNome, disciplina, turma
   const criarReserva = async (
     laboratorioId: string,
     dataReserva:   string,
     horarioInicio: string,
-    horarioFim:    string
+    horarioFim:    string,
+    professorNome: string,
+    disciplina:    string,
+    turma:         string
   ): Promise<boolean> => {
     try {
       const hoje = new Date().toISOString().split('T')[0];
 
       if (dataReserva < hoje) {
-        toast.error('Não é possível solicitar para uma data passada.');
+        toast.error('Não é possível reservar para uma data passada.');
         return false;
       }
 
-      // Verifica conflito apenas com reservas APROVADAS
+      // ALTERADO: conflito só com reservas aprovadas
       const { data: conflito } = await supabase
         .from('reserva_salas')
         .select('id')
@@ -165,19 +190,21 @@ export const useReservas = (authUid: string, userEmail: string) => {
       const { error: insertError } = await supabase
         .from('reserva_salas')
         .insert([{
-          professor_nome:  userNome,
+          professor_nome:  professorNome,
           professor_email: userEmail,
           professor_setor: userSetor,
           laboratorio_id:  laboratorioId,
           data_reserva:    dataReserva,
           horario_inicio:  horarioInicio,
           horario_fim:     horarioFim,
+          disciplina:      disciplina || null,
+          turma:           turma || null,
           status:          'pendente',
         }]);
 
       if (insertError) throw insertError;
 
-      toast.success('Solicitação enviada! Aguarde aprovação da coordenação.');
+      toast.success('Solicitação enviada! Aguarde aprovação.');
 
       const { data: atualizadas } = await supabase
         .from('reserva_salas')
@@ -190,45 +217,7 @@ export const useReservas = (authUid: string, userEmail: string) => {
       return true;
     } catch (err: any) {
       console.error('Erro ao criar reserva:', err.message);
-      toast.error('Erro ao enviar solicitação.');
-      return false;
-    }
-  };
-
-  const aprovarReserva = async (reservaId: string, observacao?: string): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('reserva_salas')
-        .update({ status: 'aprovado', observacao: observacao ?? null })
-        .eq('id', reservaId);
-
-      if (error) throw error;
-
-      toast.success('Reserva aprovada com sucesso!');
-      setReservasPendentes(prev => prev.filter(r => r.id !== reservaId));
-      return true;
-    } catch (err: any) {
-      console.error('Erro ao aprovar reserva:', err.message);
-      toast.error('Erro ao aprovar a reserva.');
-      return false;
-    }
-  };
-
-  const rejeitarReserva = async (reservaId: string, observacao?: string): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('reserva_salas')
-        .update({ status: 'rejeitado', observacao: observacao ?? null })
-        .eq('id', reservaId);
-
-      if (error) throw error;
-
-      toast.success('Reserva rejeitada.');
-      setReservasPendentes(prev => prev.filter(r => r.id !== reservaId));
-      return true;
-    } catch (err: any) {
-      console.error('Erro ao rejeitar reserva:', err.message);
-      toast.error('Erro ao rejeitar a reserva.');
+      toast.error('Erro ao criar a reserva.');
       return false;
     }
   };
@@ -243,13 +232,54 @@ export const useReservas = (authUid: string, userEmail: string) => {
       if (error) throw error;
 
       toast.success('Solicitação cancelada.');
-      setMinhasReservas(prev => prev.filter(r => r.id !== reservaId));
+      setMinhasReservas((prev) => prev.filter((r) => r.id !== reservaId));
     } catch (err: any) {
       console.error('Erro ao cancelar reserva:', err.message);
-      toast.error('Erro ao cancelar a solicitação.');
+      toast.error('Erro ao cancelar a reserva.');
     }
   };
 
+  // NOVO: aprovar reserva
+  const aprovarReserva = async (reservaId: string, observacao?: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('reserva_salas')
+        .update({ status: 'aprovado', observacao: observacao ?? null })
+        .eq('id', reservaId);
+
+      if (error) throw error;
+
+      toast.success('Reserva aprovada com sucesso!');
+      setReservasPendentes((prev) => prev.filter((r) => r.id !== reservaId));
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao aprovar reserva:', err.message);
+      toast.error('Erro ao aprovar a reserva.');
+      return false;
+    }
+  };
+
+  // NOVO: rejeitar reserva
+  const rejeitarReserva = async (reservaId: string, observacao?: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('reserva_salas')
+        .update({ status: 'rejeitado', observacao: observacao ?? null })
+        .eq('id', reservaId);
+
+      if (error) throw error;
+
+      toast.success('Reserva rejeitada.');
+      setReservasPendentes((prev) => prev.filter((r) => r.id !== reservaId));
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao rejeitar reserva:', err.message);
+      toast.error('Erro ao rejeitar a reserva.');
+      return false;
+    }
+  };
+
+  // ALTERADO: retornar novos valores
   return {
     laboratorios,
     minhasReservas,
@@ -260,6 +290,9 @@ export const useReservas = (authUid: string, userEmail: string) => {
     isCoordenador,
     userNome,
     userSetor,
+    sugestoesProfessores,
+    sugestoesDisciplinas,
+    sugestoesTurmas,
     carregarReservasDoDia,
     criarReserva,
     aprovarReserva,

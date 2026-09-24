@@ -49,10 +49,30 @@ const TURNOS = [
 
 const normalizar = (h: string) => h.substring(0, 5);
 
+// NOVO: Combobox dropdown + digitação
+const Combobox = ({ id, label, placeholder, value, onChange, options }: {
+  id: string; label: string; placeholder: string; value: string; onChange: (v: string) => void; options: string[];
+}) => (
+  <div className="space-y-1">
+    <label className="text-xs font-medium text-muted-foreground">{label}</label>
+    <input
+      list={`${id}-list`}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full border border-border rounded-xl px-4 py-2.5 text-sm bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
+    />
+    <datalist id={`${id}-list`}>
+      {options.map((opt) => (<option key={opt} value={opt} />))}
+    </datalist>
+  </div>
+);
+
+// NOVO: StatusBadge
 const StatusBadge = ({ status }: { status: string }) => {
   if (status === 'aprovado') return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500">
-      <CheckCircle className="h-3 w-3" /> Aprovado
+      <CheckCircle className="h-3 w-3" /> Confirmado
     </span>
   );
   if (status === 'rejeitado') return (
@@ -71,6 +91,7 @@ export const AgendamentoSalas: React.FC = () => {
   const { user } = useAuth();
   const userEmail = user?.email ?? '';
 
+  // ALTERADO: desestruturar novos valores do hook
   const {
     laboratorios,
     minhasReservas,
@@ -79,6 +100,10 @@ export const AgendamentoSalas: React.FC = () => {
     isLoading,
     isAdmin,
     isCoordenador,
+    userNome,
+    sugestoesProfessores,
+    sugestoesDisciplinas,
+    sugestoesTurmas,
     carregarReservasDoDia,
     criarReserva,
     cancelarReserva,
@@ -90,6 +115,13 @@ export const AgendamentoSalas: React.FC = () => {
   const [dataSelecionada, setDataSelecionada] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
+
+  // NOVO: estados do modal e formulário
+  const [modalOpen, setModalOpen] = useState(false);
+  const [slotSelecionado, setSlotSelecionado] = useState<{ inicio: string; fim: string } | null>(null);
+  const [formProfessor, setFormProfessor] = useState('');
+  const [formDisciplina, setFormDisciplina] = useState('');
+  const [formTurma, setFormTurma] = useState('');
   const [observacaoRejeicao, setObservacaoRejeicao] = useState<Record<string, string>>({});
 
   const podeAprovar = isAdmin || isCoordenador;
@@ -107,48 +139,24 @@ export const AgendamentoSalas: React.FC = () => {
     }
   };
 
-  // Só bloqueia slots com status APROVADO
-  const slotOcupado = (inicio: string, fim: string) =>
-    reservasDoDia.some(
-      (r) =>
-        r.status === 'aprovado' &&
-        normalizar(r.horario_inicio) < fim &&
-        normalizar(r.horario_fim)    > inicio
-    );
-
-  // Slots pendentes (amarelo)
-  const slotPendente = (inicio: string, fim: string) =>
-    reservasDoDia.some(
-      (r) =>
-        r.status === 'pendente' &&
-        normalizar(r.horario_inicio) < fim &&
-        normalizar(r.horario_fim)    > inicio
-    );
-
-  const quemReservou = (inicio: string, fim: string) => {
+  // ALTERADO: slotInfo substitui slotOcupado + quemReservou
+  const slotInfo = (inicio: string, fim: string) => {
     const reserva = reservasDoDia.find(
       (r) =>
-        (r.status === 'aprovado' || r.status === 'pendente') &&
         normalizar(r.horario_inicio) < fim &&
-        normalizar(r.horario_fim)    > inicio
+        normalizar(r.horario_fim) > inicio
     );
     if (!reserva) return null;
-    return reserva.professor_setor
-      ? `${reserva.professor_nome} · ${reserva.professor_setor}`
-      : reserva.professor_nome;
+    return {
+      id: reserva.id,
+      professor: reserva.professor_nome,
+      disciplina: reserva.disciplina,
+      turma: reserva.turma,
+      status: reserva.status,
+    };
   };
 
-  const handleReservar = async (inicio: string, fim: string) => {
-    if (!labSelecionado) {
-      toast.error('Selecione um laboratório primeiro.');
-      return;
-    }
-    const sucesso = await criarReserva(labSelecionado, dataSelecionada, inicio, fim);
-    if (sucesso) {
-      await carregarReservasDoDia(labSelecionado, dataSelecionada);
-    }
-  };
-
+  // NOVO: handlers de aprovação
   const handleAprovar = async (reservaId: string) => {
     await aprovarReserva(reservaId);
     if (labSelecionado) await carregarReservasDoDia(labSelecionado, dataSelecionada);
@@ -157,6 +165,27 @@ export const AgendamentoSalas: React.FC = () => {
   const handleRejeitar = async (reservaId: string) => {
     await rejeitarReserva(reservaId, observacaoRejeicao[reservaId]);
     if (labSelecionado) await carregarReservasDoDia(labSelecionado, dataSelecionada);
+  };
+
+  // NOVO: handler do modal
+  const handleConfirmarAgendamento = async () => {
+    if (!formProfessor.trim()) {
+      toast.error('Informe o nome do professor.');
+      return;
+    }
+    if (!labSelecionado || !slotSelecionado) return;
+
+    const sucesso = await criarReserva(
+      labSelecionado, dataSelecionada,
+      slotSelecionado.inicio, slotSelecionado.fim,
+      formProfessor, formDisciplina, formTurma
+    );
+    if (sucesso) {
+      setModalOpen(false);
+      setFormDisciplina('');
+      setFormTurma('');
+      await carregarReservasDoDia(labSelecionado, dataSelecionada);
+    }
   };
 
   if (isLoading) {
@@ -179,49 +208,34 @@ export const AgendamentoSalas: React.FC = () => {
         </p>
       </div>
 
-      {/* PAINEL DE APROVAÇÃO — só para admin e coordenadores */}
+      {/* NOVO: Painel de Aprovação */}
       {podeAprovar && reservasPendentes.length > 0 && (
         <Card className="rounded-2xl shadow-md border border-amber-500/30 bg-amber-500/5">
           <CardHeader className="flex flex-row items-center gap-2 p-5 pb-3">
             <Clock className="w-5 h-5 text-amber-500" />
             <CardTitle className="text-sm font-semibold tracking-wide uppercase text-amber-600">
-              Solicitações Pendentes de Aprovação ({reservasPendentes.length})
+              Solicitações Pendentes ({reservasPendentes.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="p-5 space-y-3">
             {reservasPendentes.map((reserva) => {
-              const lab = laboratorios.find(l => l.id === reserva.laboratorio_id);
+              const lab = laboratorios.find((l) => l.id === reserva.laboratorio_id);
               return (
-                <div
-                  key={reserva.id}
-                  className="rounded-xl border border-amber-500/20 bg-background p-4 space-y-3"
-                >
+                <div key={reserva.id} className="rounded-xl border border-amber-500/20 bg-background p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="space-y-0.5">
-                      <div className="text-sm font-semibold text-foreground">
-                        {reserva.professor_nome}
-                        {reserva.professor_setor && (
-                          <span className="ml-1 text-xs text-muted-foreground">· {reserva.professor_setor}</span>
-                        )}
-                      </div>
+                      <div className="text-sm font-semibold">{reserva.professor_nome}</div>
                       <div className="text-xs text-muted-foreground">
-                        {lab?.nome_laboratorio ?? reserva.laboratorio_id} · {reserva.data_reserva} · {normalizar(reserva.horario_inicio)} – {normalizar(reserva.horario_fim)}
+                        {lab?.nome_laboratorio ?? reserva.laboratorio_id} · {reserva.data_reserva} · {normalizar(reserva.horario_inicio)}–{normalizar(reserva.horario_fim)}
                       </div>
+                      {reserva.disciplina && <div className="text-xs text-muted-foreground">Disciplina: {reserva.disciplina}</div>}
+                      {reserva.turma && <div className="text-xs text-muted-foreground">Turma: {reserva.turma}</div>}
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-8"
-                        onClick={() => handleAprovar(reserva.id)}
-                      >
+                      <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-8" onClick={() => handleAprovar(reserva.id)}>
                         <CheckCircle className="h-3.5 w-3.5 mr-1" /> Aprovar
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        className="rounded-xl h-8"
-                        onClick={() => handleRejeitar(reserva.id)}
-                      >
+                      <Button size="sm" variant="destructive" className="rounded-xl h-8" onClick={() => handleRejeitar(reserva.id)}>
                         <XCircle className="h-3.5 w-3.5 mr-1" /> Rejeitar
                       </Button>
                     </div>
@@ -230,7 +244,7 @@ export const AgendamentoSalas: React.FC = () => {
                     type="text"
                     placeholder="Observação (opcional)"
                     value={observacaoRejeicao[reserva.id] ?? ''}
-                    onChange={(e) => setObservacaoRejeicao(prev => ({ ...prev, [reserva.id]: e.target.value }))}
+                    onChange={(e) => setObservacaoRejeicao((prev) => ({ ...prev, [reserva.id]: e.target.value }))}
                     className="w-full border border-border rounded-lg px-3 py-1.5 text-xs bg-muted/30 focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
@@ -240,7 +254,7 @@ export const AgendamentoSalas: React.FC = () => {
         </Card>
       )}
 
-      {/* 1. Filtros */}
+      {/* 1. Filtros — IGUAL */}
       <Card className="rounded-2xl shadow-md border border-border bg-card">
         <CardHeader className="flex flex-row items-center gap-2 p-5 pb-3">
           <Calendar className="w-5 h-5 text-primary" />
@@ -285,7 +299,7 @@ export const AgendamentoSalas: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* 2. Grade de Horários por Turno */}
+      {/* 2. Grade de Horários — ALTERADO */}
       {labSelecionado ? (
         <div className="space-y-4">
           {TURNOS.map((turno) => {
@@ -301,48 +315,72 @@ export const AgendamentoSalas: React.FC = () => {
                 <CardContent className="p-5">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                     {turno.slots.map((slot) => {
-                      const ocupado  = slotOcupado(slot.inicio, slot.fim);
-                      const pendente = !ocupado && slotPendente(slot.inicio, slot.fim);
-                      const info     = quemReservou(slot.inicio, slot.fim);
+                      const info = slotInfo(slot.inicio, slot.fim);
+                      const ocupado = info?.status === 'aprovado';
+                      const pendente = info?.status === 'pendente';
+                      const livre = !info;
+
                       return (
-                        <button
+                        <div
                           key={slot.inicio}
-                          disabled={ocupado || pendente}
-                          onClick={() => handleReservar(slot.inicio, slot.fim)}
-                          className={`group relative rounded-xl border p-3 text-center transition-all duration-200 active:scale-[0.97] ${
+                          className={`rounded-xl border p-3 text-center transition-all duration-200 ${
                             ocupado
-                              ? 'bg-destructive/5 text-destructive border-destructive/20 cursor-not-allowed opacity-70'
+                              ? 'bg-destructive/5 border-destructive/20'
                               : pendente
-                              ? 'bg-amber-500/5 text-amber-600 border-amber-500/20 cursor-not-allowed opacity-80'
-                              : 'bg-muted/30 border-border text-foreground hover:bg-primary/10 hover:border-primary/50 cursor-pointer shadow-sm'
+                              ? 'bg-amber-500/5 border-amber-500/20'
+                              : 'bg-muted/30 border-border hover:bg-primary/10 cursor-pointer'
                           }`}
                         >
                           <div className="text-xs font-bold">{slot.inicio}</div>
                           <div className="text-[10px] text-muted-foreground">{slot.fim}</div>
-                          {ocupado ? (
-                            <div className="mt-1 space-y-0.5">
-                              <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-destructive/10 text-destructive">
-                                Ocupado
-                              </span>
-                              {info && (
-                                <div className="text-[9px] text-destructive/70 truncate max-w-full">{info}</div>
-                              )}
-                            </div>
-                          ) : pendente ? (
+
+                          {livre && (
+                            <button
+                              onClick={() => {
+                                setSlotSelecionado({ inicio: slot.inicio, fim: slot.fim });
+                                setFormProfessor(userNome);
+                                setFormDisciplina('');
+                                setFormTurma('');
+                                setModalOpen(true);
+                              }}
+                              className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-all"
+                            >
+                              + Reservar
+                            </button>
+                          )}
+
+                          {pendente && info && (
                             <div className="mt-1 space-y-0.5">
                               <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600">
-                                Pendente
+                                ⏳ Pendente
                               </span>
-                              {info && (
-                                <div className="text-[9px] text-amber-600/70 truncate max-w-full">{info}</div>
+                              <div className="text-[9px] truncate">{info.professor}</div>
+                              {info.disciplina && <div className="text-[9px] truncate">{info.disciplina}</div>}
+                              {info.turma && <div className="text-[9px] truncate">{info.turma}</div>}
+                              {podeAprovar && (
+                                <div className="flex gap-1 mt-1">
+                                  <button onClick={() => handleAprovar(info.id)} className="flex-1 text-[8px] bg-emerald-500 text-white rounded px-1 py-0.5 font-bold hover:bg-emerald-600">
+                                    Aprovar
+                                  </button>
+                                  <button onClick={() => handleRejeitar(info.id)} className="flex-1 text-[8px] bg-destructive text-white rounded px-1 py-0.5 font-bold hover:bg-destructive/80">
+                                    Rejeitar
+                                  </button>
+                                </div>
                               )}
                             </div>
-                          ) : (
-                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                              Solicitar
-                            </span>
                           )}
-                        </button>
+
+                          {ocupado && info && (
+                            <div className="mt-1 space-y-0.5">
+                              <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500">
+                                ✅ Confirmado
+                              </span>
+                              <div className="text-[9px] truncate">{info.professor}</div>
+                              {info.disciplina && <div className="text-[9px] truncate">{info.disciplina}</div>}
+                              {info.turma && <div className="text-[9px] truncate">{info.turma}</div>}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -360,7 +398,7 @@ export const AgendamentoSalas: React.FC = () => {
         </div>
       )}
 
-      {/* 3. Minhas Reservas */}
+      {/* 3. Minhas Reservas — ALTERADO: StatusBadge + disciplina/turma + cancelar só pendente */}
       <Card className="rounded-2xl shadow-md border border-border bg-card">
         <CardHeader className="flex flex-row items-center gap-2 p-5 pb-3">
           <Trash className="w-5 h-5 text-primary" />
@@ -382,7 +420,7 @@ export const AgendamentoSalas: React.FC = () => {
                     key={reserva.id}
                     className="flex items-center justify-between rounded-2xl border border-border bg-muted/20 px-4 py-3 shadow-sm hover:bg-muted/30 transition-all"
                   >
-                    <div className="flex flex-col space-y-1">
+                    <div className="flex flex-col space-y-0.5">
                       <span className="text-xs font-semibold text-foreground">
                         {lab?.nome_laboratorio ?? reserva.laboratorio_id}
                       </span>
@@ -393,11 +431,15 @@ export const AgendamentoSalas: React.FC = () => {
                           {normalizar(reserva.horario_inicio)} – {normalizar(reserva.horario_fim)}
                         </span>
                       </div>
+                      {reserva.disciplina && (
+                        <div className="text-[10px] text-muted-foreground">Disciplina: {reserva.disciplina}</div>
+                      )}
+                      {reserva.turma && (
+                        <div className="text-[10px] text-muted-foreground">Turma: {reserva.turma}</div>
+                      )}
                       <StatusBadge status={reserva.status} />
                       {reserva.observacao && (
-                        <div className="text-[10px] text-muted-foreground italic">
-                          {reserva.observacao}
-                        </div>
+                        <div className="text-[10px] text-muted-foreground italic">{reserva.observacao}</div>
                       )}
                     </div>
                     {reserva.status === 'pendente' && (
@@ -418,6 +460,60 @@ export const AgendamentoSalas: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* NOVO: Modal de Agendamento */}
+      {modalOpen && slotSelecionado && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="bg-background rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl border border-border"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold">Agendar Horário</h2>
+            <p className="text-sm text-muted-foreground">
+              {laboratorios.find((l) => l.id === labSelecionado)?.nome_laboratorio} — {slotSelecionado.inicio} às {slotSelecionado.fim}
+            </p>
+
+            <Combobox
+              id="professor"
+              label="Nome do Professor"
+              placeholder="Selecione ou digite o nome"
+              value={formProfessor}
+              onChange={setFormProfessor}
+              options={sugestoesProfessores}
+            />
+
+            <Combobox
+              id="disciplina"
+              label="Disciplina"
+              placeholder="Selecione ou digite a disciplina"
+              value={formDisciplina}
+              onChange={setFormDisciplina}
+              options={sugestoesDisciplinas}
+            />
+
+            <Combobox
+              id="turma"
+              label="Turma"
+              placeholder="Selecione ou digite a turma"
+              value={formTurma}
+              onChange={setFormTurma}
+              options={sugestoesTurmas}
+            />
+
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setModalOpen(false)} className="flex-1 rounded-xl">
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmarAgendamento} className="flex-1 rounded-xl">
+                Confirmar Agendamento
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
