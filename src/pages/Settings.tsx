@@ -122,6 +122,7 @@ const Settings = () => {
   const [openEdit, setOpenEdit] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [editRoleAgendamento, setEditRoleAgendamento] = useState<"diretor" | "coordenador" | "professor" | "aluno" | "">("");
+  const [saving, setSaving] = useState(false);
 
   // Setores
   const [setores, setSetores] = useState<Setor[]>([]);
@@ -311,6 +312,8 @@ const Settings = () => {
       setCreating(false);
     }
   };
+
+  const openCreateModal = () => { setFormSetorId(""); setNovoRoleAgendamento(""); setOpenCreate(true); };
 
   const openEditUser = (u: UserRow) => {
   setEditingUser(u);
