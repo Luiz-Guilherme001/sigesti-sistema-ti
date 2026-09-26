@@ -525,14 +525,14 @@ const Settings = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {isAdmin ? (
+                                                    {isAdmin ? (
                             <Select
-                              value={u.role_agendamento ?? ""}
-                              onValueChange={(v) => changeRoleAgendamento(u.user_id, v as "diretor" | "coordenador" | "professor" | "aluno" | "")}
+                              value={u.role_agendamento ?? "nenhum"}
+                              onValueChange={(v) => changeRoleAgendamento(u.user_id, v === "nenhum" ? "" : v as "diretor" | "coordenador" | "professor" | "aluno")}
                             >
                               <SelectTrigger className="w-36 h-8"><SelectValue placeholder="Nenhum" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">Nenhum</SelectItem>
+                                <SelectItem value="nenhum">Nenhum</SelectItem>
                                 <SelectItem value="diretor">Diretor</SelectItem>
                                 <SelectItem value="coordenador">Coordenador</SelectItem>
                                 <SelectItem value="professor">Professor</SelectItem>
