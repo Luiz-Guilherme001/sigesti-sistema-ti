@@ -121,7 +121,7 @@ const Settings = () => {
   const [deleting, setDeleting] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [editRoleAgendamento, setEditRoleAgendamento] = useState<"diretor" | "coordenador" | "professor" | "aluno" | "">("");
 
   // Setores
   const [setores, setSetores] = useState<Setor[]>([]);
@@ -312,22 +312,24 @@ const Settings = () => {
     }
   };
 
-  const openCreateModal = () => { setFormSetorId(""); setOpenCreate(true); };
-
   const openEditUser = (u: UserRow) => {
-    setEditingUser(u);
-    setForm({ nome: u.nome, email: u.email, role: u.role });
-    setFormSetorId(u.setor_id || "");
-    setOpenEdit(true);
-  };
+  setEditingUser(u);
+  setForm({ nome: u.nome, email: u.email, role: u.role });
+  setFormSetorId(u.setor_id || "");
+  setEditRoleAgendamento(u.role_agendamento || "");
+  setOpenEdit(true);
+};
 
   const handleUpdateUser = async () => {
-    if (!editingUser) return;
-    setSaving(true);
-    const { error } = await supabase.from("profiles").update({ nome: form.nome, setor_id: formSetorId || null }).eq("user_id", editingUser.user_id);
-    if (error) { toast.error(error.message); } else { toast.success("Usuário atualizado com sucesso!"); loadUsers(); setOpenEdit(false); setEditingUser(null); }
-    setSaving(false);
-  };
+  if (!editingUser) return;
+  setSaving(true);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ nome: form.nome, setor_id: formSetorId || null, role_agendamento: editRoleAgendamento || null })
+    .eq("user_id", editingUser.user_id);
+  if (error) { toast.error(error.message); } else { toast.success("Usuário atualizado com sucesso!"); loadUsers(); setOpenEdit(false); setEditingUser(null); }
+  setSaving(false);
+};
 
   const filteredUsers = userRows
     .filter((u) => filtroRole === "todos" || u.role === filtroRole)
@@ -798,11 +800,24 @@ const Settings = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div>
+                        <div>
               <Label>Setor</Label>
               <Select value={formSetorId} onValueChange={setFormSetorId}>
                 <SelectTrigger><SelectValue placeholder="Selecione um setor" /></SelectTrigger>
                 <SelectContent>{setoresList.map((s) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Agendamento</Label>
+              <Select value={editRoleAgendamento || "nenhum"} onValueChange={(v) => setEditRoleAgendamento(v === "nenhum" ? "" : v as "diretor" | "coordenador" | "professor" | "aluno")}>
+                <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhum">Nenhum</SelectItem>
+                  <SelectItem value="diretor">Diretor</SelectItem>
+                  <SelectItem value="coordenador">Coordenador</SelectItem>
+                  <SelectItem value="professor">Professor</SelectItem>
+                  <SelectItem value="aluno">Aluno</SelectItem>
+                </SelectContent>
               </Select>
             </div>
           </div>
