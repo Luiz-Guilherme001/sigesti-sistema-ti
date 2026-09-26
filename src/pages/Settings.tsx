@@ -65,6 +65,7 @@ interface UserRow {
   nome: string;
   email: string;
   role: "admin" | "tecnico" | "usuario";
+  role_agendamento?: "admin" | "diretor" | "coordenador" | "professor" | "aluno" | null;
   setor_nome?: string | null;
   setor_id?: string | null;
 }
@@ -76,8 +77,6 @@ interface Setor {
   imagem_url?: string | null;
   icone?: string | null;
 }
-
-
 
 const genPassword = () => {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -101,8 +100,6 @@ const Settings = () => {
 
   // Stats
   const [stats, setStats] = useState({ total: 0, admins: 0, tecnicos: 0, novos7d: 0 });
-
-
 
   // Usuários
   const [userRows, setUserRows] = useState<UserRow[]>([]);
@@ -166,8 +163,6 @@ const Settings = () => {
     recarregarSetoresList();
   }, []);
 
-
-
   // ── Stats ──────────────────────────────────────────────────────────────────
   const loadStats = async () => {
     const [{ count: total }, { data: rolesData }] = await Promise.all([
@@ -180,8 +175,6 @@ const Settings = () => {
     const { count: novos7d } = await supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", sevenDaysAgo);
     setStats({ total: total ?? 0, admins, tecnicos, novos7d: novos7d ?? 0 });
   };
-
-
 
   // ── Perfil ─────────────────────────────────────────────────────────────────
   const handleSaveProfile = async () => {
@@ -208,12 +201,10 @@ const Settings = () => {
     if (error) { toast.error("Erro ao enviar email"); } else { toast.success("Email de redefinição enviado"); setPwdOpen(false); }
   };
 
-
-
   // ── Usuários ───────────────────────────────────────────────────────────────
   const loadUsers = async () => {
     setUserLoading(true);
-    const { data: profiles, error } = await supabase.from("profiles").select("user_id, nome, email, setor_id").order("nome", { ascending: true });
+    const { data: profiles, error } = await supabase.from("profiles").select("user_id, nome, email, setor_id, role_agendamento").order("nome", { ascending: true });
     if (error) { toast.error(error.message); setUserLoading(false); return; }
     const { data: setoresData } = await supabase.from("setores").select("id, nome");
     const setorMap = new Map<string, string>();
@@ -230,6 +221,7 @@ const Settings = () => {
     setUserRows((profiles ?? []).map((p) => ({
       user_id: p.user_id, nome: p.nome, email: p.email,
       role: roleMap.get(p.user_id) ?? "tecnico",
+      role_agendamento: p.role_agendamento ?? null,
       setor_nome: p.setor_id ? setorMap.get(p.setor_id) ?? null : null,
       setor_id: p.setor_id,
     })));
@@ -245,6 +237,19 @@ const Settings = () => {
     const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
     if (error) { toast.error(error.message); return; }
     toast.success("Papel atualizado");
+    loadUsers();
+  };
+
+  const changeRoleAgendamento = async (
+    userId: string,
+    novoRole: "diretor" | "coordenador" | "professor" | "aluno" | ""
+  ) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ role_agendamento: novoRole || null })
+      .eq("user_id", userId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Papel de agendamento atualizado");
     loadUsers();
   };
 
@@ -420,7 +425,6 @@ const Settings = () => {
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
           <TabsTrigger value="setores">Setores</TabsTrigger>
           <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
-
           <TabsTrigger value="seguranca">Ajuda</TabsTrigger>
         </TabsList>
 
@@ -501,15 +505,15 @@ const Settings = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Nome</TableHead><TableHead>E-mail</TableHead><TableHead>Setor</TableHead><TableHead>Papel</TableHead>
+                      <TableHead>Nome</TableHead><TableHead>E-mail</TableHead><TableHead>Setor</TableHead><TableHead>Papel</TableHead><TableHead>Agendamento</TableHead>
                       {isAdmin && <TableHead className="text-right">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {userLoading ? (
-                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Carregando...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Carregando...</TableCell></TableRow>
                     ) : filteredUsers.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Nenhum usuário</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Nenhum usuário</TableCell></TableRow>
                     ) : filteredUsers.map((u) => (
                       <TableRow key={u.user_id}>
                         <TableCell className="font-medium">{u.nome}</TableCell>
@@ -519,6 +523,27 @@ const Settings = () => {
                           <Badge variant={u.role === "admin" ? "destructive" : "secondary"}>
                             {u.role === "admin" ? "Administrador" : u.role === "tecnico" ? "Técnico" : "Usuário"}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {isAdmin ? (
+                            <Select
+                              value={u.role_agendamento ?? ""}
+                              onValueChange={(v) => changeRoleAgendamento(u.user_id, v as "diretor" | "coordenador" | "professor" | "aluno" | "")}
+                            >
+                              <SelectTrigger className="w-36 h-8"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="">Nenhum</SelectItem>
+                                <SelectItem value="diretor">Diretor</SelectItem>
+                                <SelectItem value="coordenador">Coordenador</SelectItem>
+                                <SelectItem value="professor">Professor</SelectItem>
+                                <SelectItem value="aluno">Aluno</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {u.role_agendamento ? u.role_agendamento.charAt(0).toUpperCase() + u.role_agendamento.slice(1) : "—"}
+                            </span>
+                          )}
                         </TableCell>
                         {isAdmin && (
                           <TableCell className="text-right">
@@ -661,8 +686,6 @@ const Settings = () => {
           </div>
         </TabsContent>
 
-
-
         {/* AJUDA */}
         <TabsContent value="seguranca">
           <Card className="rounded-2xl shadow-md">
@@ -675,7 +698,7 @@ const Settings = () => {
                 </AccordionItem>
                 <AccordionItem value="q2">
                   <AccordionTrigger>O que fazer se eu for o único admin?</AccordionTrigger>
-                  <AccordionContent>Promova outro usuário a admin antes de sair. O sistema impede a remoção do último administrador.</AccordionContent>
+                  <AccordionContent>Promova outro usuário a admin antes de sair. O sistema impede a remoção do único administrador.</AccordionContent>
                 </AccordionItem>
               </Accordion>
               <div className="text-sm border-t pt-4 flex items-center gap-2"><Mail className="h-4 w-4" /> suporte@empresa.com</div>

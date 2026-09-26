@@ -41,7 +41,7 @@ export const useReservas = (authUid: string, userEmail: string) => {
   const [isLoading, setIsLoading]                   = useState(true);
   const [userNome, setUserNome]                     = useState<string>('');
   const [userSetor, setUserSetor]                   = useState<string | null>(null);
-
+  const [roleAgendamento, setRoleAgendamento]       = useState<string | null>(null);
   // NOVO: estados para aprovação e sugestões
   const [reservasPendentes, setReservasPendentes]   = useState<Reserva[]>([]);
   const [isAdmin, setIsAdmin]                       = useState(false);
@@ -57,9 +57,9 @@ export const useReservas = (authUid: string, userEmail: string) => {
       try {
         const hoje = new Date().toISOString().split('T')[0];
 
-        const { data: profileData, error: profileError } = await supabase
+                const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('nome, setor_id, setores(nome)')
+          .select('nome, setor_id, setores(nome), role_agendamento')
           .eq('user_id', authUid)
           .maybeSingle();
 
@@ -71,6 +71,7 @@ export const useReservas = (authUid: string, userEmail: string) => {
 
         setUserNome(nome);
         setUserSetor(setor);
+        setRoleAgendamento(profileData?.role_agendamento ?? null);
 
         // NOVO: verificar se é admin
         const { data: roleData } = await supabase
@@ -114,7 +115,10 @@ export const useReservas = (authUid: string, userEmail: string) => {
         setMinhasReservas((reservaRes.data || []) as Reserva[]);
 
         // NOVO: preencher sugestões
-        if (profsRes.data) setSugestoesProfessores(profsRes.data.map(p => p.nome));
+        if (profsRes.data) {
+  const nomesUnicos = [...new Set(profsRes.data.map(p => p.nome))];
+  setSugestoesProfessores(nomesUnicos);
+}
         if (discsRes.data) setSugestoesDisciplinas([...new Set(discsRes.data.map(d => d.disciplina))] as string[]);
         if (turmasRes.data) setSugestoesTurmas([...new Set(turmasRes.data.map(t => t.turma))] as string[]);
 
@@ -246,9 +250,39 @@ export const useReservas = (authUid: string, userEmail: string) => {
     }
   };
 
-  // NOVO: aprovar reserva
+    // NOVO: aprovar reserva
   const aprovarReserva = async (reservaId: string, observacao?: string): Promise<boolean> => {
     try {
+      // Buscar a reserva que está sendo aprovada
+      const { data: reservaAtual, error: fetchError } = await supabase
+        .from('reserva_salas')
+        .select('laboratorio_id, data_reserva, horario_inicio, horario_fim')
+        .eq('id', reservaId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Verificar se já existe outra reserva aprovada no mesmo horário/lab
+      const { data: aprovadasConflitantes, error: conflitoError } = await supabase
+        .from('reserva_salas')
+        .select('horario_inicio, horario_fim')
+        .eq('laboratorio_id', reservaAtual.laboratorio_id)
+        .eq('data_reserva', reservaAtual.data_reserva)
+        .eq('status', 'aprovado')
+        .neq('id', reservaId);
+
+      if (conflitoError) throw conflitoError;
+
+      const conflito = (aprovadasConflitantes || []).some((r) =>
+        normalizar(r.horario_inicio) < normalizar(reservaAtual.horario_fim) &&
+        normalizar(r.horario_fim) > normalizar(reservaAtual.horario_inicio)
+      );
+
+      if (conflito) {
+        toast.error('Já existe uma reserva aprovada nesse horário. Rejeite ou cancele o conflito antes de aprovar.');
+        return false;
+      }
+
       const { error } = await supabase
         .from('reserva_salas')
         .update({ status: 'aprovado', observacao: observacao ?? null })
@@ -297,6 +331,7 @@ export const useReservas = (authUid: string, userEmail: string) => {
     isCoordenador,
     userNome,
     userSetor,
+    roleAgendamento,
     sugestoesProfessores,
     sugestoesDisciplinas,
     sugestoesTurmas,

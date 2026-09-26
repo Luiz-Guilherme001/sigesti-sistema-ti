@@ -4,9 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Trash2, Calendar, Layout, Trash, Sunrise, Sun, Moon, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -60,55 +57,44 @@ const ComboboxField = ({ label, options, value, onChange }: {
   value: string;
   onChange: (v: string) => void;
 }) => {
-  const [modoManual, setModoManual] = useState(false);
+  const [foco, setFoco] = useState(false);
+  const opcoesUnicas = [...new Set(options)];
 
-  // Se o valor atual não está na lista, mostrar modo manual
-  useEffect(() => {
-    if (value && options.length > 0 && !options.includes(value)) {
-      setModoManual(true);
-    }
-  }, [value, options]);
-
-  const handleSelect = (val: string) => {
-    if (val === '__manual__') {
-      setModoManual(true);
-      onChange('');
-    } else {
-      setModoManual(false);
-      onChange(val);
-    }
-  };
+  const filtradas = value
+    ? opcoesUnicas.filter((opt) =>
+        opt.toLowerCase().includes(value.toLowerCase())
+      )
+    : opcoesUnicas;
 
   return (
-    <div className="space-y-1">
+    <div className="relative space-y-1">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      {!modoManual ? (
-        <Select value={value || undefined} onValueChange={handleSelect}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder={`Selecione ${label.toLowerCase()}...`} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
-            <SelectItem value="__manual__">✏️ Digitar manualmente</SelectItem>
-          </SelectContent>
-        </Select>
-      ) : (
-        <div className="space-y-1">
-          <Input
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={`Digite ${label.toLowerCase()}...`}
-            className="text-sm"
-          />
-          <button
-            type="button"
-            onClick={() => { setModoManual(false); onChange(''); }}
-            className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
-          >
-            ← Voltar para seleção
-          </button>
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFoco(true)}
+        onBlur={() => setTimeout(() => setFoco(false), 150)}
+        placeholder={`Digite ou selecione ${label.toLowerCase()}...`}
+        className="text-sm"
+      />
+
+      {foco && filtradas.length > 0 && (
+        <div className="absolute z-10 w-full mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
+          {filtradas.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onMouseDown={() => {
+                onChange(opt);
+                setFoco(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors ${
+                opt === value ? 'bg-primary/10 text-primary font-medium' : ''
+              }`}
+            >
+              {opt}
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -146,6 +132,7 @@ export const AgendamentoSalas: React.FC = () => {
     isAdmin,
     isCoordenador,
     userNome,
+    roleAgendamento,
     sugestoesProfessores,
     sugestoesDisciplinas,
     sugestoesTurmas,
@@ -169,6 +156,7 @@ export const AgendamentoSalas: React.FC = () => {
   const [observacaoRejeicao, setObservacaoRejeicao] = useState<Record<string, string>>({});
 
   const podeAprovar = isAdmin || isCoordenador;
+  const podeSolicitar = isAdmin || ['professor', 'coordenador', 'diretor'].includes(roleAgendamento ?? '');
 
   const handleSelecionarLab = async (labId: string) => {
     setLabSelecionado(labId);
@@ -184,20 +172,21 @@ export const AgendamentoSalas: React.FC = () => {
   };
 
   const slotInfo = (inicio: string, fim: string) => {
-    const reserva = reservasDoDia.find(
-      (r) =>
-        normalizar(r.horario_inicio) < fim &&
-        normalizar(r.horario_fim) > inicio
-    );
-    if (!reserva) return null;
-    return {
-      id: reserva.id,
-      professor: reserva.professor_nome,
-      disciplina: reserva.disciplina,
-      turma: reserva.turma,
-      status: reserva.status,
-    };
+  const reserva = reservasDoDia.find(
+    (r) =>
+      r.status !== 'rejeitado' &&
+      normalizar(r.horario_inicio) < fim &&
+      normalizar(r.horario_fim) > inicio
+  );
+  if (!reserva) return null;
+  return {
+    id: reserva.id,
+    professor: reserva.professor_nome,
+    disciplina: reserva.disciplina,
+    turma: reserva.turma,
+    status: reserva.status,
   };
+};
 
   const handleAprovar = async (reservaId: string) => {
     await aprovarReserva(reservaId);
@@ -405,8 +394,8 @@ export const AgendamentoSalas: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Botões */}
-                          {livre && (
+                                                    {/* Botões */}
+                          {livre && podeSolicitar && (
                             <button
                               onClick={() => {
                                 setSlotSelecionado({ inicio: slot.inicio, fim: slot.fim });
@@ -419,6 +408,11 @@ export const AgendamentoSalas: React.FC = () => {
                             >
                               + Reservar
                             </button>
+                          )}
+                          {livre && !podeSolicitar && (
+                            <span className="mt-2 block w-full text-center text-[10px] text-muted-foreground">
+                              Sem permissão para solicitar
+                            </span>
                           )}
 
                           {pendente && podeAprovar && (
