@@ -113,6 +113,7 @@ const Settings = () => {
   const [novoEmail, setNovoEmail] = useState("");
   const [novaSenha, setNovaSenha] = useState(genPassword());
   const [novoPapel, setNovoPapel] = useState<"admin" | "tecnico" | "usuario">("tecnico");
+  const [novoRoleAgendamento, setNovoRoleAgendamento] = useState<"diretor" | "coordenador" | "professor" | "aluno" | "">("");
   const [formSetorId, setFormSetorId] = useState<string>("");
   const [setoresList, setSetoresList] = useState<{ id: string; nome: string }[]>([]);
   const [promoteTarget, setPromoteTarget] = useState<UserRow | null>(null);
@@ -286,15 +287,23 @@ const Settings = () => {
     if (novaSenha.length < 6) return toast.error("Senha deve ter ao menos 6 caracteres");
     setCreating(true);
     try {
-      const { error } = await supabase.functions.invoke("create-user", {
+            const { data: createData, error } = await supabase.functions.invoke("create-user", {
         body: { nome: novoNome.trim(), email: novoEmail.trim().toLowerCase(), password: novaSenha, role: novoPapel, setor_id: formSetorId || null },
       });
       if (error) {
         try { const errText = await error.context.text(); toast.error(errText); } catch { /* noop */ }
         throw error;
       }
+
+      if (novoRoleAgendamento && createData?.user_id) {
+        await supabase
+          .from("profiles")
+          .update({ role_agendamento: novoRoleAgendamento })
+          .eq("user_id", createData.user_id);
+      }
+
       toast.success(`Usuário criado. Senha: ${novaSenha}`, { duration: 12000 });
-      setOpenCreate(false); setNovoNome(""); setNovoEmail(""); setNovaSenha(genPassword()); setNovoPapel("tecnico"); setFormSetorId("");
+      setOpenCreate(false); setNovoNome(""); setNovoEmail(""); setNovaSenha(genPassword()); setNovoPapel("tecnico"); setFormSetorId(""); setNovoRoleAgendamento("");
       setTimeout(() => loadUsers(), 1000);
     } catch (err) {
       toast.error((err as Error).message ?? "Falha ao criar usuário");
@@ -743,11 +752,24 @@ const Settings = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div>
+                        <div>
               <Label>Setor</Label>
               <Select value={formSetorId} onValueChange={setFormSetorId}>
                 <SelectTrigger><SelectValue placeholder="Selecione um setor" /></SelectTrigger>
                 <SelectContent>{setoresList.map((s) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Agendamento (opcional)</Label>
+              <Select value={novoRoleAgendamento || "nenhum"} onValueChange={(v) => setNovoRoleAgendamento(v === "nenhum" ? "" : v as "diretor" | "coordenador" | "professor" | "aluno")}>
+                <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhum">Nenhum</SelectItem>
+                  <SelectItem value="diretor">Diretor</SelectItem>
+                  <SelectItem value="coordenador">Coordenador</SelectItem>
+                  <SelectItem value="professor">Professor</SelectItem>
+                  <SelectItem value="aluno">Aluno</SelectItem>
+                </SelectContent>
               </Select>
             </div>
           </div>
