@@ -26,13 +26,6 @@ export interface Laboratorio {
   nome_laboratorio: string;
 }
 
-const SETORES_COORDENACAO = [
-  'b751d128-94c9-4e2d-a363-0756f763df39',
-  'd6229edd-ecc4-41d5-af58-b96fc7249a77',
-  '35b19e15-37cb-4d14-bab1-5bf4d3b70f6d',
-  '665f781c-6537-416b-a475-956740ded1b4',
-  '01373263-5d93-474d-9160-5f2ecb1192b2',
-];
 
 export const useReservas = (authUid: string, userEmail: string) => {
   const [minhasReservas, setMinhasReservas]         = useState<Reserva[]>([]);
@@ -65,9 +58,8 @@ export const useReservas = (authUid: string, userEmail: string) => {
 
         if (profileError) throw profileError;
 
-        const nome    = profileData?.nome ?? userEmail;
+                const nome    = profileData?.nome ?? userEmail;
         const setor   = (profileData?.setores as any)?.nome ?? null;
-        const setorId = profileData?.setor_id ?? null;
 
         setUserNome(nome);
         setUserSetor(setor);
@@ -81,8 +73,9 @@ export const useReservas = (authUid: string, userEmail: string) => {
           .eq('role', 'admin')
           .maybeSingle();
 
-        const admin = !!roleData;
-        const coord = setorId ? SETORES_COORDENACAO.includes(setorId) : false;
+                const admin = !!roleData;
+        const roleAg = profileData?.role_agendamento ?? null;
+        const coord = roleAg === 'coordenador' || roleAg === 'diretor';
         setIsAdmin(admin);
         setIsCoordenador(coord);
 

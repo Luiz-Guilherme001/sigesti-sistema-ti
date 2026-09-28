@@ -287,20 +287,20 @@ const Settings = () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novoEmail)) return toast.error("E-mail inválido");
     if (novaSenha.length < 6) return toast.error("Senha deve ter ao menos 6 caracteres");
     setCreating(true);
-    try {
-            const { data: createData, error } = await supabase.functions.invoke("create-user", {
-        body: { nome: novoNome.trim(), email: novoEmail.trim().toLowerCase(), password: novaSenha, role: novoPapel, setor_id: formSetorId || null },
+        try {
+      const { error } = await supabase.functions.invoke("create-user", {
+        body: {
+          nome: novoNome.trim(),
+          email: novoEmail.trim().toLowerCase(),
+          password: novaSenha,
+          role: novoPapel,
+          setor_id: formSetorId || null,
+          role_agendamento: novoRoleAgendamento || null,
+        },
       });
       if (error) {
         try { const errText = await error.context.text(); toast.error(errText); } catch { /* noop */ }
         throw error;
-      }
-
-      if (novoRoleAgendamento && createData?.user_id) {
-        await supabase
-          .from("profiles")
-          .update({ role_agendamento: novoRoleAgendamento })
-          .eq("user_id", createData.user_id);
       }
 
       toast.success(`Usuário criado. Senha: ${novaSenha}`, { duration: 12000 });
