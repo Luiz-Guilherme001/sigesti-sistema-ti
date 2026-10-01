@@ -242,7 +242,7 @@ const Settings = () => {
     loadUsers();
   };
 
-  const changeRoleAgendamento = async (
+    const changeRoleAgendamento = async (
     userId: string,
     novoRole: "diretor" | "coordenador" | "professor" | "aluno" | ""
   ) => {
@@ -251,6 +251,19 @@ const Settings = () => {
       .update({ role_agendamento: novoRole || null })
       .eq("user_id", userId);
     if (error) { toast.error(error.message); return; }
+
+    if (novoRole === "diretor") {
+      const { data: existingAdmin } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      if (!existingAdmin) {
+        await supabase.from("user_roles").insert({ user_id: userId, role: "admin" });
+      }
+    }
+
     toast.success("Papel de agendamento atualizado");
     loadUsers();
   };
@@ -330,6 +343,19 @@ const Settings = () => {
     .from("profiles")
     .update({ nome: form.nome, setor_id: formSetorId || null, role_agendamento: editRoleAgendamento || null })
     .eq("user_id", editingUser.user_id);
+
+  if (!error && editRoleAgendamento === "diretor") {
+    const { data: existingAdmin } = await supabase
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", editingUser.user_id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!existingAdmin) {
+      await supabase.from("user_roles").insert({ user_id: editingUser.user_id, role: "admin" });
+    }
+  }
+
   if (error) { toast.error(error.message); } else { toast.success("Usuário atualizado com sucesso!"); loadUsers(); setOpenEdit(false); setEditingUser(null); }
   setSaving(false);
 };
